@@ -329,7 +329,7 @@ class NetworkAnalyzer:
 class FuturisticLineChart:
     """Enhanced line chart with futuristic look for visualizing network traffic over time"""
     def __init__(self, parent, title, labels, colors, bg_color='#080f1c', grid_color='#143062', 
-                 width=600, height=300, line_width=3.0, font_color='#e0f2ff'):
+                 width=600, height=300, line_width=3.0, font_color='#e0f2ff', show_hover_values=False):
         self.parent = parent
         self.title = title
         self.labels = labels
@@ -340,6 +340,7 @@ class FuturisticLineChart:
         self.height = height
         self.line_width = line_width
         self.font_color = font_color
+        self.show_hover_values = show_hover_values  # Flag to control value boxes on hover
         
         # Store connection details for hover functionality
         self.connection_details = None
@@ -540,7 +541,7 @@ class FuturisticLineChart:
     
     def on_hover(self, event):
         """Handle mouse hover event with detailed connection information"""
-        if event.inaxes == self.ax:
+        if event.inaxes == self.ax and self.show_hover_values:  # Only show hover values if flag is set
             self.tooltip.place_forget()
             
             # Get position for tooltip
@@ -1369,7 +1370,8 @@ class FuturisticNetworkDashboard:
             grid_color=self.colors['grid'],
             width=500,
             height=200,
-            font_color=self.colors['text']
+            font_color=self.colors['text'],
+            show_hover_values=True  # Enable hover values for Network chart
         )
         self.network_chart.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
@@ -1432,7 +1434,8 @@ class FuturisticNetworkDashboard:
             grid_color=self.colors['grid'],
             width=750,
             height=200,
-            font_color=self.colors['text']
+            font_color=self.colors['text'],
+            show_hover_values=False  # Disable hover values for Auth chart
         )
         self.auth_chart.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
@@ -1511,7 +1514,8 @@ class FuturisticNetworkDashboard:
             grid_color=self.colors['grid'],
             width=750,
             height=200,
-            font_color=self.colors['text']
+            font_color=self.colors['text'],
+            show_hover_values=False  # Disable hover values for Security Alerts chart
         )
         self.unauth_chart.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
@@ -1767,6 +1771,10 @@ class FuturisticNetworkDashboard:
         
         # Clear tooltip
         self.network_info_label.config(text="")
+        
+        # Also hide any tooltips on the chart
+        if self.network_chart and hasattr(self.network_chart, 'detail_tooltip') and self.network_chart.detail_tooltip:
+            self.network_chart.detail_tooltip.place_forget()
     
     def _on_auth_hover(self, event):
         """Show details about network access monitoring on hover"""
