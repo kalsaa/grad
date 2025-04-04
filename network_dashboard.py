@@ -300,25 +300,13 @@ class NetworkData:
         # Data storage
         self.network_traffic = []
         self.system_load = []
-        self.memory_usage = {
-            'memory used': [],
-            'memory buffers': [],
-            'memory cached': [],
-            'memory free': []
-        }
-        self.disk_io = []
+        self.auth_status = []  # List to track authorized/unauthorized access counts
         self.timestamps = []
         
         # Current metrics
         self.current_network = 25.0
-        self.current_memory_percent = 68.0
-        self.current_disk_percent = 13.33
-        self.current_memory_gb = {
-            'memory used': 3.1,
-            'memory buffers': 0.8,
-            'memory cached': 0.6,
-            'memory free': 0.5
-        }
+        self.current_auth_percent = 85.0     # Percentage of authorized traffic
+        self.current_unauth_percent = 15.0   # Percentage of unauthorized traffic
         
         # Device data for 7 devices
         self.devices = [
@@ -356,18 +344,25 @@ class NetworkData:
             self.timestamps = self.timestamps[-60:]
             self.network_traffic = self.network_traffic[-60:]
             self.system_load = self.system_load[-60:]
-            self.disk_io = self.disk_io[-60:]
-            for key in self.memory_usage:
-                self.memory_usage[key] = self.memory_usage[key][-60:]
+            self.auth_status = self.auth_status[-60:]
         
-        # Generate network traffic for each device
+        # Generate network traffic for each device with authorization status
         network_values = []
+        auth_count = 0
+        unauth_count = 0
+        
         for device in self.devices:
             # Random traffic with occasional spikes
             base_traffic = random.uniform(5, 20)
-            if random.random() < 0.1:  # 10% chance of spike
+            is_authorized = True
+            
+            if random.random() < 0.15:  # 15% chance of unauthorized access
                 # Create a traffic spike (unauthorized access)
                 base_traffic *= 3
+                is_authorized = False
+                unauth_count += 1
+            else:
+                auth_count += 1
             
             # Store device traffic
             if len(device['traffic']) > 60:
@@ -378,13 +373,14 @@ class NetworkData:
         # Store overall network traffic
         self.network_traffic.append(network_values)
         
-        # Update memory percent (wandering between 65-75%)
-        self.current_memory_percent += (random.random() - 0.5) * 2
-        self.current_memory_percent = max(65, min(75, self.current_memory_percent))
+        # Calculate and store auth percentages
+        total = auth_count + unauth_count
+        if total > 0:
+            self.current_auth_percent = (auth_count / total) * 100
+            self.current_unauth_percent = (unauth_count / total) * 100
         
-        # Update disk percent (wandering between 10-15%)
-        self.current_disk_percent += (random.random() - 0.5)
-        self.current_disk_percent = max(10, min(15, self.current_disk_percent))
+        # Store auth status for historical data
+        self.auth_status.append([auth_count, unauth_count])
         
         # Update system load (3 lines, wandering with trends)
         current_loads = []
@@ -402,17 +398,6 @@ class NetworkData:
             current_loads.append(load['value'])
         
         self.system_load.append(current_loads)
-        
-        # Update memory usage (4 stacked lines)
-        for key in self.memory_usage:
-            # Small random fluctuations in each memory category
-            self.current_memory_gb[key] += (random.random() - 0.5) * 0.05
-            self.current_memory_gb[key] = max(0.1, min(4.0, self.current_memory_gb[key]))
-            self.memory_usage[key].append(self.current_memory_gb[key])
-        
-        # Update disk I/O (fluctuating positive and negative)
-        disk_io_value = (random.random() - 0.5) * 1.0  # Between -0.5 and 0.5
-        self.disk_io.append(disk_io_value)
     
     def update(self):
         """Generate a new data point and return current metrics"""
@@ -423,14 +408,16 @@ class NetworkData:
         for device in self.devices:
             network_values.append(device['traffic'][-1])
             
+        # Extract latest auth status data
+        auth_data = self.auth_status[-1] if self.auth_status else [0, 0]
+            
         return {
             'network_traffic': network_values,
-            'memory_percent': self.current_memory_percent,
-            'disk_percent': self.current_disk_percent,
+            'auth_percent': self.current_auth_percent,
+            'unauth_percent': self.current_unauth_percent,
+            'auth_counts': auth_data,
             'network_history': self.network_traffic,
             'system_load': self.system_load[-1],
-            'memory_usage': {k: v[-1] for k, v in self.memory_usage.items()},
-            'disk_io': self.disk_io[-1],
             'timestamp': self.timestamps[-1]
         }
 
@@ -489,10 +476,10 @@ class NetworkDashboard:
         # Chart components
         self.cpu_chart = None
         self.system_load_chart = None
-        self.memory_chart = None
-        self.memory_gauge = None
-        self.disk_io_chart = None
-        self.disk_gauge = None
+        self.auth_chart = None
+        self.auth_gauge = None
+        self.unauth_chart = None
+        self.unauth_gauge = None
         
         # Styles for the UI
         self.style = ttk.Style()
@@ -570,23 +557,23 @@ class NetworkDashboard:
         self.charts_frame.rowconfigure(1, weight=1)
         self.charts_frame.rowconfigure(2, weight=1)
         
-        # CPU Usage chart (top left)
+        # Network Traffic chart (top left)
         self._create_cpu_chart()
         
         # System Load chart (top right)
         self._create_system_load_chart()
         
-        # Memory Usage chart (middle left)
-        self._create_memory_chart()
+        # Network Access Monitor chart (middle left & center)
+        self._create_auth_chart()
         
-        # Memory Usage gauge (middle right)
-        self._create_memory_gauge()
+        # Authorized Access gauge (middle right)
+        self._create_auth_gauge()
         
-        # Disk I/O chart (bottom left)
-        self._create_disk_io_chart()
+        # Security Alerts chart (bottom left & center)
+        self._create_unauth_chart()
         
-        # Disk Space gauge (bottom right)
-        self._create_disk_gauge()
+        # Unauthorized Access gauge (bottom right)
+        self._create_unauth_gauge()
     
     def _create_cpu_chart(self):
         """Create the Network Traffic chart"""
@@ -634,94 +621,91 @@ class NetworkDashboard:
         )
         self.system_load_chart.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
     
-    def _create_memory_chart(self):
-        """Create the Memory Usage chart"""
-        memory_frame = ttk.Frame(self.charts_frame, style='TFrame')
-        memory_frame.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=5, pady=5)
+    def _create_auth_chart(self):
+        """Create the Network Access Monitor chart"""
+        auth_frame = ttk.Frame(self.charts_frame, style='TFrame')
+        auth_frame.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=5, pady=5)
         
         # Title
-        title_label = ttk.Label(memory_frame, text="Memory Usage", style='Title.TLabel')
+        title_label = ttk.Label(auth_frame, text="Network Access Monitor", style='Title.TLabel')
         title_label.pack(anchor=tk.NW, padx=5, pady=5)
         
-        # Create chart
-        self.memory_chart = MultiLineChart(
-            memory_frame,
-            "Memory Usage",
-            ["memory used", "memory buffers", "memory cached", "memory free"],
-            self.memory_colors,
-            bg_color=self.colors['chart_bg'],
-            grid_color=self.colors['grid'],
-            width=750,
-            height=200,
-            y_min=0,
-            y_max=5,
-            y_label="GB",
-            font_color=self.colors['text']
-        )
-        self.memory_chart.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-    
-    def _create_memory_gauge(self):
-        """Create Memory Usage gauge"""
-        memory_gauge_frame = ttk.Frame(self.charts_frame, style='TFrame')
-        memory_gauge_frame.grid(row=1, column=2, sticky="nsew", padx=5, pady=5)
-        
-        # Title
-        title_label = ttk.Label(memory_gauge_frame, text="Memory Usage", style='Title.TLabel')
-        title_label.pack(anchor=tk.NW, padx=5, pady=5)
-        
-        # Create gauge
-        self.memory_gauge = GaugeChart(
-            memory_gauge_frame,
-            bg_color=self.colors['chart_bg'],
-            color=self.colors['green'],
-            width=300,
-            height=250,
-            font_color=self.colors['text']
-        )
-        self.memory_gauge.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-    
-    def _create_disk_io_chart(self):
-        """Create the Disk I/O chart"""
-        disk_frame = ttk.Frame(self.charts_frame, style='TFrame')
-        disk_frame.grid(row=2, column=0, columnspan=2, sticky="nsew", padx=5, pady=5)
-        
-        # Title
-        title_label = ttk.Label(disk_frame, text="Disk I/O", style='Title.TLabel')
-        title_label.pack(anchor=tk.NW, padx=5, pady=5)
-        
-        # Create chart
-        self.disk_io_chart = DiskIOChart(
-            disk_frame,
-            "Disk I/O",
-            ["io time"],
-            self.disk_colors,
+        # Create chart for network access monitoring
+        self.auth_chart = LineChart(
+            auth_frame,
+            "Network Access Monitor",
+            ["Authorized", "Unauthorized"],
+            [self.colors['green'], self.colors['orange']],  # Green for authorized, Orange for unauthorized
             bg_color=self.colors['chart_bg'],
             grid_color=self.colors['grid'],
             width=750,
             height=200,
             font_color=self.colors['text']
         )
-        self.disk_io_chart.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.auth_chart.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
     
-    def _create_disk_gauge(self):
-        """Create Disk Space Usage gauge"""
-        disk_gauge_frame = ttk.Frame(self.charts_frame, style='TFrame')
-        disk_gauge_frame.grid(row=2, column=2, sticky="nsew", padx=5, pady=5)
+    def _create_auth_gauge(self):
+        """Create Authorized Access gauge"""
+        auth_gauge_frame = ttk.Frame(self.charts_frame, style='TFrame')
+        auth_gauge_frame.grid(row=1, column=2, sticky="nsew", padx=5, pady=5)
         
         # Title
-        title_label = ttk.Label(disk_gauge_frame, text="Disk Space Usage", style='Title.TLabel')
+        title_label = ttk.Label(auth_gauge_frame, text="Authorized Access", style='Title.TLabel')
         title_label.pack(anchor=tk.NW, padx=5, pady=5)
         
         # Create gauge
-        self.disk_gauge = GaugeChart(
-            disk_gauge_frame,
+        self.auth_gauge = GaugeChart(
+            auth_gauge_frame,
             bg_color=self.colors['chart_bg'],
             color=self.colors['green'],
             width=300,
             height=250,
             font_color=self.colors['text']
         )
-        self.disk_gauge.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.auth_gauge.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+    
+    def _create_unauth_chart(self):
+        """Create the Unauthorized Access Monitor chart"""
+        unauth_frame = ttk.Frame(self.charts_frame, style='TFrame')
+        unauth_frame.grid(row=2, column=0, columnspan=2, sticky="nsew", padx=5, pady=5)
+        
+        # Title
+        title_label = ttk.Label(unauth_frame, text="Security Alerts", style='Title.TLabel')
+        title_label.pack(anchor=tk.NW, padx=5, pady=5)
+        
+        # Create chart for unauthorized access monitoring
+        self.unauth_chart = LineChart(
+            unauth_frame,
+            "Security Alerts",
+            ["Alerts"],
+            [self.colors['orange']],  # Orange for alerts
+            bg_color=self.colors['chart_bg'],
+            grid_color=self.colors['grid'],
+            width=750,
+            height=200,
+            font_color=self.colors['text']
+        )
+        self.unauth_chart.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+    
+    def _create_unauth_gauge(self):
+        """Create Unauthorized Access gauge"""
+        unauth_gauge_frame = ttk.Frame(self.charts_frame, style='TFrame')
+        unauth_gauge_frame.grid(row=2, column=2, sticky="nsew", padx=5, pady=5)
+        
+        # Title
+        title_label = ttk.Label(unauth_gauge_frame, text="Unauthorized Access", style='Title.TLabel')
+        title_label.pack(anchor=tk.NW, padx=5, pady=5)
+        
+        # Create gauge
+        self.unauth_gauge = GaugeChart(
+            unauth_gauge_frame,
+            bg_color=self.colors['chart_bg'],
+            color=self.colors['orange'],  # Orange for unauthorized
+            width=300,
+            height=250,
+            font_color=self.colors['text']
+        )
+        self.unauth_gauge.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
     
     def update_ui(self):
         """Update the UI with the latest data"""
@@ -735,13 +719,14 @@ class NetworkDashboard:
             # Update System Load chart with 3 values
             self.system_load_chart.update_data(data['system_load'], data['timestamp'])
             
-            # Update Memory charts
-            self.memory_chart.update_data(data['memory_usage'], data['timestamp'])
-            self.memory_gauge.update_data(data['memory_percent'])
+            # Update Auth/Unauth charts
+            self.auth_chart.update_data(data['auth_counts'], data['timestamp'])
+            self.auth_gauge.update_data(data['auth_percent'])
             
-            # Update Disk charts
-            self.disk_io_chart.update_data([data['disk_io']], data['timestamp'])
-            self.disk_gauge.update_data(data['disk_percent'])
+            # Update Unauthorized charts
+            # For the unauth_chart, we're just passing the unauthorized count
+            self.unauth_chart.update_data([data['auth_counts'][1]], data['timestamp'])
+            self.unauth_gauge.update_data(data['unauth_percent'])
         
         # Schedule the next update
         self.root.after(1000, self.update_ui)
