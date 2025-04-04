@@ -349,6 +349,10 @@ class FuturisticLineChart:
         # Tooltip for displaying detailed information when hovering
         self.detail_tooltip = None
         
+        # Pause traffic when hovering
+        self.hovering = False
+        self.hover_device_index = None
+        
         # Neon color dictionary - these will create the glowing effect
         self.neon_colors = {
             '#00d084': '#7fffd4', # Green to lighter teal
@@ -410,8 +414,8 @@ class FuturisticLineChart:
         # X-axis format as time
         self.ax.xaxis.set_major_locator(MaxNLocator(5))
         
-        # Y-axis range
-        self.ax.set_ylim(0, 20)
+        # Y-axis range with more headroom
+        self.ax.set_ylim(0, 60)  # Increased to 60 to avoid cutting off traffic spikes
         
         # Labels
         self.ax.set_xlabel('Time', color=self.font_color, fontsize=9, alpha=0.9)
@@ -566,6 +570,18 @@ class FuturisticLineChart:
                     if dist < closest_dist and dist < 50:  # Within 50 pixels
                         closest_dist = dist
                         closest_line_idx = i
+            
+            # Set paused state if we're hovering over a line
+            if closest_line_idx is not None:
+                # Get reference to the main application's data source (NetworkData instance)
+                # This reference is stored in the parent window's hierarchy
+                app = self.find_app_reference()
+                if app and hasattr(app, 'node_data'):
+                    # Set the hovering state to pause data updates
+                    app.node_data.paused = True
+                    app.node_data.selected_device = closest_line_idx
+                    self.hovering = True
+                    self.hover_device_index = closest_line_idx
                         
             # Basic hover information
             text = f"Value: {event.ydata:.2f} at x={event.xdata:.1f}"
@@ -578,7 +594,7 @@ class FuturisticLineChart:
                     device_ip = self.device_ips[closest_line_idx] if self.device_ips else "Unknown IP"
                     
                     # Create detailed tooltip with connection information
-                    text = f"{device_name} ({device_ip})\n"
+                    text = f"{device_name} ({device_ip}) - PAUSED\n"
                     text += f"Traffic: {event.ydata:.2f} Mbps\n\n"
                     text += "Active Connections:\n"
                     
@@ -638,6 +654,35 @@ class FuturisticLineChart:
             
             self.detail_tooltip.place(x=tooltip_x, y=tooltip_y)
     
+    def find_app_reference(self):
+        """Find reference to the main application by walking up the widget hierarchy"""
+        parent = self.parent
+        while parent:
+            if hasattr(parent, 'node_data'):
+                return parent
+            if parent.master is None or parent.master == parent:
+                break
+            parent = parent.master
+        
+        # If we reached here, try searching through all children of root
+        if hasattr(self.parent, 'winfo_toplevel'):
+            root = self.parent.winfo_toplevel()
+            
+            # Search through all children recursively
+            def search_children(widget):
+                if hasattr(widget, 'node_data'):
+                    return widget
+                
+                for child in widget.winfo_children():
+                    result = search_children(child)
+                    if result:
+                        return result
+                return None
+                
+            return search_children(root)
+            
+        return None
+    
     def _format_bytes(self, bytes_value):
         """Format bytes to human-readable format"""
         for unit in ['B', 'KB', 'MB', 'GB']:
@@ -651,6 +696,17 @@ class FuturisticLineChart:
         self.tooltip.place_forget()
         if hasattr(self, 'detail_tooltip') and self.detail_tooltip:
             self.detail_tooltip.place_forget()
+            
+        # Resume data updates if we were paused
+        if self.hovering:
+            # Find and update the main application's data source
+            app = self.find_app_reference()
+            if app and hasattr(app, 'node_data'):
+                app.node_data.paused = False
+                app.node_data.selected_device = None
+            
+            self.hovering = False
+            self.hover_device_index = None
     
     def pack(self, **kwargs):
         """Pack the chart widget"""
@@ -827,6 +883,10 @@ class NetworkData:
         self.current_auth_percent = 85.0     # Percentage of authorized traffic
         self.current_unauth_percent = 15.0   # Percentage of unauthorized traffic
         
+        # Pause state - when True, the data generation is paused
+        self.paused = False
+        self.selected_device = None  # Store currently selected device index
+        
         # Common protocols, ports and destinations
         self.protocols = ["TCP", "UDP", "HTTP", "HTTPS", "DNS", "FTP", "SSH"]
         self.common_ports = [80, 443, 22, 21, 53, 8080, 3306, 5432, 25, 110]
@@ -970,11 +1030,14 @@ class NetworkData:
             is_authorized = True
             
             if random.random() < 0.15:  # 15% chance of unauthorized access
-                # Create a traffic spike (unauthorized access)
-                base_traffic *= 3
+                # Create a traffic spike (unauthorized access) - increased from 3x to 5x for better visibility
+                base_traffic *= 5
                 is_authorized = False
                 unauth_count += 1
             else:
+                # Occasionally create authorized traffic spikes too
+                if random.random() < 0.05:  # 5% chance of authorized spike
+                    base_traffic *= 2.5
                 auth_count += 1
             
             # Store device traffic
@@ -1017,7 +1080,9 @@ class NetworkData:
     
     def update(self):
         """Generate a new data point and return current metrics"""
-        self._generate_next_data_point()
+        # Only generate new data if not paused
+        if not self.paused:
+            self._generate_next_data_point()
         
         # Extract latest network traffic for each device
         network_values = []
@@ -1032,7 +1097,8 @@ class NetworkData:
         for device in self.devices:
             connection_details.append(device["connections"])
             
-        return {
+        # Create response dictionary
+        response = {
             'network_traffic': network_values,
             'auth_percent': self.current_auth_percent,
             'unauth_percent': self.current_unauth_percent,
@@ -1042,8 +1108,12 @@ class NetworkData:
             'timestamp': self.timestamps[-1],
             'connections': connection_details,
             'device_names': [d["name"] for d in self.devices],
-            'device_ips': [d["ip"] for d in self.devices]
+            'device_ips': [d["ip"] for d in self.devices],
+            'paused': self.paused,
+            'selected_device': self.selected_device
         }
+        
+        return response
 
 
 class FuturisticNetworkDashboard:
@@ -1173,8 +1243,32 @@ class FuturisticNetworkDashboard:
         device_frame = ttk.Frame(self.header_frame, style='Header.TFrame')
         device_frame.pack(side=tk.LEFT, padx=30, pady=10)
         
-        device_label = ttk.Label(device_frame, text="7 devices monitored", style='Header.TLabel')
+        device_label = ttk.Label(device_frame, text="Device:", style='Header.TLabel')
         device_label.pack(side=tk.LEFT, padx=5)
+        
+        # Create device dropdown with the list of devices
+        self.device_var = tk.StringVar()
+        self.device_var.set("All Devices")  # Default selection
+        
+        # Create custom style for dropdown
+        self.style.configure('Dropdown.TCombobox', 
+                          fieldbackground=self.colors['header_bg'],
+                          background=self.colors['header_bg'],
+                          foreground=self.colors['text'],
+                          arrowcolor=self.colors['highlight'],
+                          selectbackground=self.colors['highlight'])
+        
+        # Create the dropdown with all devices
+        device_options = ["All Devices"] + [f"Device {i+1}" for i in range(7)]
+        self.device_dropdown = ttk.Combobox(device_frame, 
+                                         textvariable=self.device_var,
+                                         values=device_options,
+                                         width=15,
+                                         style='Dropdown.TCombobox')
+        self.device_dropdown.pack(side=tk.LEFT, padx=5)
+        
+        # Bind the dropdown selection event
+        self.device_dropdown.bind("<<ComboboxSelected>>", self._on_device_selected)
         
         # Last hour dropdown frame
         time_frame = ttk.Frame(self.header_frame, style='Header.TFrame')
@@ -1395,6 +1489,171 @@ class FuturisticNetworkDashboard:
         
         # Schedule the next update
         self.root.after(1000, self.update_ui)
+    
+    def _on_device_selected(self, event):
+        """Handle device selection from dropdown"""
+        selected = self.device_var.get()
+        
+        if selected == "All Devices":
+            # Show all devices, unpause data
+            self.node_data.paused = False
+            self.node_data.selected_device = None
+        else:
+            # Extract device index (0-6) from the selected device string
+            try:
+                # Parse "Device X" to get the device index (0-based)
+                device_idx = int(selected.split()[1]) - 1
+                if 0 <= device_idx < 7:
+                    # Pause data and set selected device
+                    self.node_data.paused = True
+                    self.node_data.selected_device = device_idx
+                    
+                    # Show device details in a popup
+                    self._show_device_details(device_idx)
+            except (ValueError, IndexError):
+                # If the parsing fails, just ignore
+                pass
+    
+    def _show_device_details(self, device_idx):
+        """Show device details in a popup window"""
+        if not hasattr(self, 'detail_window') or not self.detail_window.winfo_exists():
+            # Create new detail window
+            self.detail_window = tk.Toplevel(self.root)
+            self.detail_window.title(f"Device {device_idx+1} Details")
+            self.detail_window.geometry("500x400")
+            self.detail_window.configure(bg=self.colors['bg'])
+            self.detail_window.transient(self.root)  # Set as transient to main window
+            
+            # Get device data
+            device = self.node_data.devices[device_idx]
+            device_name = device["name"]
+            device_ip = device["ip"]
+            
+            # Create header with device info
+            header_frame = tk.Frame(self.detail_window, bg=self.colors['header_bg'])
+            header_frame.pack(fill=tk.X, padx=0, pady=0)
+            
+            # Device name and IP
+            tk.Label(header_frame, 
+                  text=f"{device_name} ({device_ip})", 
+                  font=('Segoe UI', 14, 'bold'),
+                  bg=self.colors['header_bg'],
+                  fg=self.colors['text']).pack(pady=10)
+            
+            # Connection details section
+            details_frame = tk.Frame(self.detail_window, bg=self.colors['bg'])
+            details_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
+            
+            # Create connections list
+            conn_frame = tk.Frame(details_frame, bg=self.colors['bg'])
+            conn_frame.pack(fill=tk.BOTH, expand=True, padx=0, pady=10)
+            
+            # Header
+            tk.Label(conn_frame, 
+                  text="ACTIVE CONNECTIONS", 
+                  font=('Segoe UI', 11, 'bold'),
+                  bg=self.colors['bg'],
+                  fg=self.colors['highlight']).pack(anchor=tk.W, pady=(0, 10))
+            
+            # Create scrollable frame for connections
+            canvas = tk.Canvas(conn_frame, bg=self.colors['bg'], highlightthickness=0)
+            scrollbar = ttk.Scrollbar(conn_frame, orient="vertical", command=canvas.yview)
+            scrollable_frame = tk.Frame(canvas, bg=self.colors['bg'])
+            
+            scrollable_frame.bind(
+                "<Configure>",
+                lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+            )
+            
+            canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+            canvas.configure(yscrollcommand=scrollbar.set)
+            
+            canvas.pack(side="left", fill="both", expand=True)
+            scrollbar.pack(side="right", fill="y")
+            
+            # Add connection details
+            if device["connections"]:
+                for i, conn in enumerate(device["connections"]):
+                    # Create connection frame
+                    connection_frame = tk.Frame(scrollable_frame, bg=self.colors['bg'], padx=5, pady=5)
+                    connection_frame.pack(fill=tk.X, pady=5)
+                    
+                    # Connection header (Protocol and destination)
+                    status_color = self.colors['green'] if conn.get("authorized", True) else self.colors['orange']
+                    conn_header = tk.Frame(connection_frame, bg=self.colors['bg'])
+                    conn_header.pack(fill=tk.X)
+                    
+                    # Icon based on protocol
+                    icon = "⚡" if conn['protocol'] in ["HTTP", "HTTPS"] else "⟷"
+                    if conn['protocol'] == "SSH":
+                        icon = "🔒"
+                    elif conn['protocol'] == "DNS":
+                        icon = "🔍"
+                        
+                    tk.Label(conn_header, 
+                          text=f"{icon} {conn['protocol']} → {conn['destination']}:{conn['port']}", 
+                          font=('Segoe UI', 10, 'bold'),
+                          bg=self.colors['bg'],
+                          fg=status_color).pack(side=tk.LEFT)
+                    
+                    # Status indicator
+                    auth_text = "✓ Authorized" if conn.get("authorized", True) else "⚠ Unauthorized"
+                    tk.Label(conn_header, 
+                          text=auth_text, 
+                          font=('Segoe UI', 9),
+                          bg=self.colors['bg'],
+                          fg=status_color).pack(side=tk.RIGHT)
+                    
+                    # Connection details
+                    details_text = f"Status: {conn['status']}  |  Duration: {int(conn['duration'])}s\n"
+                    details_text += f"Bytes sent: {self._format_bytes(conn['bytes_sent'])}  |  "
+                    details_text += f"Received: {self._format_bytes(conn['bytes_received'])}  |  "
+                    details_text += f"Packets: {conn['packets']}"
+                    
+                    tk.Label(connection_frame, 
+                          text=details_text, 
+                          font=('Segoe UI', 9),
+                          bg=self.colors['bg'],
+                          fg=self.colors['text'],
+                          justify=tk.LEFT).pack(anchor=tk.W, pady=(5, 0))
+                    
+                    # Add separator except for last item
+                    if i < len(device["connections"]) - 1:
+                        separator = tk.Frame(scrollable_frame, height=1, bg=self.colors['grid'])
+                        separator.pack(fill=tk.X, padx=5, pady=5)
+            else:
+                # No connections
+                tk.Label(scrollable_frame, 
+                      text="No active connections", 
+                      font=('Segoe UI', 10),
+                      bg=self.colors['bg'],
+                      fg=self.colors['text']).pack(pady=20)
+                      
+            # Close button
+            close_button = tk.Button(self.detail_window, 
+                                   text="Close", 
+                                   font=('Segoe UI', 10),
+                                   bg=self.colors['header_bg'],
+                                   fg=self.colors['text'],
+                                   bd=0,
+                                   padx=15,
+                                   pady=5,
+                                   activebackground=self.colors['highlight'],
+                                   activeforeground=self.colors['text'],
+                                   command=lambda: self.detail_window.destroy())
+            close_button.pack(pady=10)
+        else:
+            # Update existing window with new device
+            self.detail_window.title(f"Device {device_idx+1} Details")
+            # Update window content here...
+    
+    def _format_bytes(self, bytes_value):
+        """Format bytes to human-readable format"""
+        for unit in ['B', 'KB', 'MB', 'GB']:
+            if bytes_value < 1024.0:
+                return f"{bytes_value:.1f} {unit}"
+            bytes_value /= 1024.0
+        return f"{bytes_value:.1f} TB"
     
     def on_closing(self):
         """Handle application closing"""
