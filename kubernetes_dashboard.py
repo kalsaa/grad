@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Kubernetes Monitoring Dashboard
-A single-file application that mimics the Kubernetes dashboard shown in the reference image
+Network Monitoring Dashboard 
+A single-file application that monitors network traffic for multiple devices
 """
 
 import tkinter as tk
@@ -96,7 +96,7 @@ class GaugeChart:
         self.canvas.draw()
 
 class LineChart:
-    """Line chart for visualizing metrics over time"""
+    """Line chart for visualizing network metrics over time"""
     def __init__(self, parent, title, labels, colors, bg_color='#151515', grid_color='#333', 
                  width=600, height=300, line_width=1.5, font_color='white'):
         self.parent = parent
@@ -131,11 +131,70 @@ class LineChart:
         self.data = [[] for _ in range(len(labels))]
         self.timestamps = []
         
+        # Create tooltip
+        self.tooltip = tk.Label(
+            self.parent, 
+            text="", 
+            bg="#333333", 
+            fg="white",
+            font=("Segoe UI", 9),
+            bd=1,
+            relief=tk.SOLID,
+            padx=5,
+            pady=3
+        )
+        
+        # Connect events
+        self.fig.canvas.mpl_connect('motion_notify_event', self.on_hover)
+        self.fig.canvas.mpl_connect('figure_leave_event', self.on_leave)
+        
         # Initial plot setup
         self._setup_plot()
         
         # Pack the canvas
         self.canvas_widget.pack(fill=tk.BOTH, expand=True)
+        
+    def on_hover(self, event):
+        """Handle mouse hover event"""
+        if event.inaxes == self.ax:
+            # Find the closest point for each line
+            closest_line = None
+            closest_distance = float('inf')
+            closest_idx = -1
+            closest_line_idx = -1
+            
+            for i, line in enumerate(self.lines):
+                if not line or len(line.get_xdata()) == 0:
+                    continue
+                    
+                for j, (x, y) in enumerate(zip(line.get_xdata(), line.get_ydata())):
+                    distance = np.sqrt((event.xdata - x) ** 2 + (event.ydata - y) ** 2)
+                    if distance < closest_distance and distance < 3:  # Threshold for detection
+                        closest_distance = distance
+                        closest_line = line
+                        closest_idx = j
+                        closest_line_idx = i
+            
+            if closest_line is not None and closest_idx >= 0 and closest_line_idx >= 0:
+                # Get device info 
+                device_name = self.labels[closest_line_idx] if closest_line_idx < len(self.labels) else "Device"
+                value = closest_line.get_ydata()[closest_idx]
+                
+                # Format tooltip text
+                tooltip_text = f"Device: {device_name}\nTraffic: {value:.2f}"
+                
+                # Show tooltip
+                self.tooltip.config(text=tooltip_text)
+                self.tooltip.place(x=event.x + 15, y=event.y + 10)
+                self.tooltip.lift()
+                return
+            
+            # Hide tooltip if not over a point
+            self.tooltip.place_forget()
+    
+    def on_leave(self, event):
+        """Handle mouse leave event"""
+        self.tooltip.place_forget()
     
     def _setup_plot(self):
         """Set up the initial plot"""
@@ -258,11 +317,11 @@ class DiskIOChart(LineChart):
         # Allow for negative values
         self.ax.axhline(y=0, color=self.grid_color, linestyle='-', alpha=0.3)
 
-class NodeData:
-    """Class for simulating node metric data"""
+class NetworkData:
+    """Class for simulating network device data"""
     def __init__(self):
         # Data storage
-        self.cpu_usage = []
+        self.network_traffic = []
         self.system_load = []
         self.memory_usage = {
             'memory used': [],
@@ -274,7 +333,7 @@ class NodeData:
         self.timestamps = []
         
         # Current metrics
-        self.current_cpu = 25.0
+        self.current_network = 25.0
         self.current_memory_percent = 68.0
         self.current_disk_percent = 13.33
         self.current_memory_gb = {
@@ -283,6 +342,17 @@ class NodeData:
             'memory cached': 0.6,
             'memory free': 0.5
         }
+        
+        # Device data for 7 devices
+        self.devices = [
+            {"name": "Device 1", "ip": "192.168.1.100", "traffic": []},
+            {"name": "Device 2", "ip": "192.168.1.101", "traffic": []},
+            {"name": "Device 3", "ip": "192.168.1.102", "traffic": []},
+            {"name": "Device 4", "ip": "192.168.1.103", "traffic": []},
+            {"name": "Device 5", "ip": "192.168.1.104", "traffic": []},
+            {"name": "Device 6", "ip": "192.168.1.105", "traffic": []},
+            {"name": "Device 7", "ip": "192.168.1.106", "traffic": []}
+        ]
         
         # System load for 3 lines
         self.load_values = [
@@ -307,16 +377,29 @@ class NodeData:
         # Keep only last 60 points
         if len(self.timestamps) > 60:
             self.timestamps = self.timestamps[-60:]
-            self.cpu_usage = self.cpu_usage[-60:]
+            self.network_traffic = self.network_traffic[-60:]
             self.system_load = self.system_load[-60:]
             self.disk_io = self.disk_io[-60:]
             for key in self.memory_usage:
                 self.memory_usage[key] = self.memory_usage[key][-60:]
         
-        # Update CPU (wandering between 20-30%)
-        self.current_cpu += (random.random() - 0.5) * 2
-        self.current_cpu = max(20, min(30, self.current_cpu))
-        self.cpu_usage.append(self.current_cpu)
+        # Generate network traffic for each device
+        network_values = []
+        for device in self.devices:
+            # Random traffic with occasional spikes
+            base_traffic = random.uniform(5, 20)
+            if random.random() < 0.1:  # 10% chance of spike
+                # Create a traffic spike (unauthorized access)
+                base_traffic *= 3
+            
+            # Store device traffic
+            if len(device['traffic']) > 60:
+                device['traffic'] = device['traffic'][-60:]
+            device['traffic'].append(base_traffic)
+            network_values.append(base_traffic)
+        
+        # Store overall network traffic
+        self.network_traffic.append(network_values)
         
         # Update memory percent (wandering between 65-75%)
         self.current_memory_percent += (random.random() - 0.5) * 2
@@ -357,31 +440,37 @@ class NodeData:
     def update(self):
         """Generate a new data point and return current metrics"""
         self._generate_next_data_point()
+        
+        # Extract latest network traffic for each device
+        network_values = []
+        for device in self.devices:
+            network_values.append(device['traffic'][-1])
+            
         return {
-            'cpu': self.current_cpu,
+            'network_traffic': network_values,
             'memory_percent': self.current_memory_percent,
             'disk_percent': self.current_disk_percent,
-            'cpu_history': self.cpu_usage,
+            'network_history': self.network_traffic,
             'system_load': self.system_load[-1],
             'memory_usage': {k: v[-1] for k, v in self.memory_usage.items()},
             'disk_io': self.disk_io[-1],
             'timestamp': self.timestamps[-1]
         }
 
-class KubernetesDashboard:
+class NetworkDashboard:
     def __init__(self, root):
         self.root = root
         self.running = True
         
         # Configure main window
-        root.title("Kubernetes Nodes")
+        root.title("Network Monitoring Dashboard")
         root.geometry("1200x800")
         root.minsize(1000, 700)
         root.configure(bg="#151515")
         root.protocol("WM_DELETE_WINDOW", self.on_closing)
         
         # Create data simulator
-        self.node_data = NodeData()
+        self.node_data = NetworkData()
         
         # Colors for the UI - matched to the reference image
         self.colors = {
@@ -403,6 +492,17 @@ class KubernetesDashboard:
         self.load_colors = ['#4caf50', '#2196f3', '#ff9800']  # Green, Blue, Orange
         self.memory_colors = ['#606060', '#4682b4', '#00aad4', '#30c270']  # Grey, Steel Blue, Light Blue, Green
         self.disk_colors = ['#4caf50']  # Green
+        
+        # Device colors (one for each of the 7 devices)
+        self.device_colors = [
+            '#4caf50',  # Green
+            '#2196f3',  # Blue
+            '#ff9800',  # Orange
+            '#9c27b0',  # Purple
+            '#00bcd4',  # Teal
+            '#f44336',  # Red
+            '#ffeb3b'   # Yellow
+        ]
         
         # UI components
         self.main_frame = None
@@ -461,18 +561,18 @@ class KubernetesDashboard:
         self.header_frame = ttk.Frame(self.main_frame, style='Header.TFrame')
         self.header_frame.pack(fill=tk.X, padx=0, pady=0)
         
-        # Node selector
+        # Title
         header_label = ttk.Label(self.header_frame, 
-                              text="Kubernetes Nodes", 
+                              text="Network Monitoring Dashboard", 
                               style='Header.TLabel')
         header_label.pack(side=tk.LEFT, padx=10, pady=10)
         
-        # Server dropdown
-        server_frame = ttk.Frame(self.header_frame, style='Header.TFrame')
-        server_frame.pack(side=tk.LEFT, padx=20, pady=7)
+        # Device selector
+        device_frame = ttk.Frame(self.header_frame, style='Header.TFrame')
+        device_frame.pack(side=tk.LEFT, padx=20, pady=7)
         
-        server_label = ttk.Label(server_frame, text="server", style='Header.TLabel')
-        server_label.pack(side=tk.LEFT, padx=5)
+        device_label = ttk.Label(device_frame, text="7 devices", style='Header.TLabel')
+        device_label.pack(side=tk.LEFT, padx=5)
         
         # Last hour dropdown frame
         time_frame = ttk.Frame(self.header_frame, style='Header.TFrame')
@@ -512,20 +612,20 @@ class KubernetesDashboard:
         self._create_disk_gauge()
     
     def _create_cpu_chart(self):
-        """Create the CPU usage chart"""
+        """Create the Network Traffic chart"""
         cpu_frame = ttk.Frame(self.charts_frame, style='TFrame')
         cpu_frame.grid(row=0, column=0, columnspan=1, sticky="nsew", padx=5, pady=5)
         
         # Title
-        title_label = ttk.Label(cpu_frame, text="Idle CPU", style='Title.TLabel')
+        title_label = ttk.Label(cpu_frame, text="Network Traffic", style='Title.TLabel')
         title_label.pack(anchor=tk.NW, padx=5, pady=5)
         
         # Create chart
         self.cpu_chart = LineChart(
             cpu_frame,
-            "Idle CPU",
-            ["n1", "n2", "n3"],
-            self.cpu_colors,
+            "Network Traffic",
+            ["Device 1", "Device 2", "Device 3", "Device 4", "Device 5", "Device 6", "Device 7"],
+            self.device_colors,
             bg_color=self.colors['chart_bg'],
             grid_color=self.colors['grid'],
             width=500,
@@ -652,8 +752,8 @@ class KubernetesDashboard:
             # Get the latest data
             data = self.node_data.update()
             
-            # Update CPU chart
-            self.cpu_chart.update_data([data['cpu'], data['cpu']*0.95, data['cpu']*1.05], data['timestamp'])
+            # Update Network Traffic chart (all 7 devices)
+            self.cpu_chart.update_data(data['network_traffic'], data['timestamp'])
             
             # Update System Load chart with 3 values
             self.system_load_chart.update_data(data['system_load'], data['timestamp'])
@@ -677,7 +777,7 @@ class KubernetesDashboard:
 def main():
     # Create the main application window
     root = tk.Tk()
-    app = KubernetesDashboard(root)
+    app = NetworkDashboard(root)
     
     # Start the main event loop
     root.mainloop()
