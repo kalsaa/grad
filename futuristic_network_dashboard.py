@@ -347,6 +347,10 @@ class FuturisticLineChart:
         self.device_names = None
         self.device_ips = None
         
+        # For tracking device selection
+        self.selected_device_idx = None
+        self.last_click_time = 0
+        
         # Tooltip for displaying detailed information when hovering
         self.detail_tooltip = None
         
@@ -696,14 +700,69 @@ class FuturisticLineChart:
             bytes_value /= 1024.0
         return f"{bytes_value:.1f} TB"
     
+    def on_click(self, event):
+        """Handle mouse click event to select a device"""
+        if event.inaxes == self.ax and self.show_hover_values:
+            # Find closest data point to click location
+            closest_line_idx = None
+            closest_dist = float('inf')
+            
+            # Check each line (device)
+            for i, line in enumerate(self.lines):
+                # Check if there's line data available
+                if not line.get_xdata().size or not line.get_ydata().size:
+                    continue
+                
+                # Get the line data
+                line_xdata = line.get_xdata()
+                line_ydata = line.get_ydata()
+                
+                # Find the closest point on the line
+                for j in range(len(line_xdata)):
+                    # Convert data coordinates to display coordinates
+                    display_coords = self.ax.transData.transform((line_xdata[j], line_ydata[j]))
+                    dist = np.sqrt((display_coords[0] - event.x)**2 + (display_coords[1] - event.y)**2)
+                    
+                    if dist < closest_dist and dist < 50:  # Within 50 pixels
+                        closest_dist = dist
+                        closest_line_idx = i
+            
+            # If we found a nearby line, select that device
+            if closest_line_idx is not None:
+                app = self.find_app_reference()
+                if app and hasattr(app, 'node_data'):
+                    # Check for double-click (less than 0.5 seconds between clicks)
+                    if hasattr(self, 'last_click_time') and time.time() - self.last_click_time < 0.5:
+                        # Double click - close device details and resume all graphs
+                        app.node_data.paused = False
+                        app.node_data.selected_device = None
+                        self.selected_device_idx = None
+                        self.hovering = False
+                        
+                        # Close device details window if open
+                        if hasattr(app, 'detail_window') and app.detail_window.winfo_exists():
+                            app.detail_window.destroy()
+                    else:
+                        # Single click - select device and show details
+                        app.node_data.paused = True
+                        app.node_data.selected_device = closest_line_idx
+                        self.selected_device_idx = closest_line_idx
+                        self.hovering = True
+                        
+                        # Show device details
+                        app._show_device_details(closest_line_idx)
+                    
+                    # Store click time for double-click detection
+                    self.last_click_time = time.time()
+    
     def on_leave(self, event):
         """Handle mouse leave event"""
         self.tooltip.place_forget()
         if hasattr(self, 'detail_tooltip') and self.detail_tooltip:
             self.detail_tooltip.place_forget()
             
-        # Resume data updates if we were paused
-        if self.hovering:
+        # Resume data updates if we were paused, but only if no device is selected
+        if self.hovering and not self.selected_device_idx:
             # Find and update the main application's data source
             app = self.find_app_reference()
             if app and hasattr(app, 'node_data'):
@@ -890,7 +949,16 @@ class NetworkData:
         
         # Pause state - when True, the data generation is paused
         self.paused = False
-        self.selected_device = None  # Store currently selected device index
+        self._selected_device = None  # Store currently selected device index
+        
+    @property
+    def selected_device(self):
+        return self._selected_device
+        
+    @selected_device.setter
+    def selected_device(self, value):
+        # Allow None or integer values
+        self._selected_device = value
         
         # Common protocols, ports and destinations
         self.protocols = ["TCP", "UDP", "HTTP", "HTTPS", "DNS", "FTP", "SSH"]
