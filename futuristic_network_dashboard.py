@@ -951,15 +951,6 @@ class NetworkData:
         self.paused = False
         self._selected_device = None  # Store currently selected device index
         
-    @property
-    def selected_device(self):
-        return self._selected_device
-        
-    @selected_device.setter
-    def selected_device(self, value):
-        # Allow None or integer values
-        self._selected_device = value
-        
         # Common protocols, ports and destinations
         self.protocols = ["TCP", "UDP", "HTTP", "HTTPS", "DNS", "FTP", "SSH"]
         self.common_ports = [80, 443, 22, 21, 53, 8080, 3306, 5432, 25, 110]
@@ -1200,6 +1191,17 @@ class NetworkData:
         self.last_data = response
         
         return response
+        
+    @property
+    def selected_device(self):
+        """Getter for selected_device property"""
+        return self._selected_device
+        
+    @selected_device.setter
+    def selected_device(self, value):
+        """Setter for selected_device property"""
+        # Allow None or integer values
+        self._selected_device = value
 
 
 class FuturisticNetworkDashboard:
