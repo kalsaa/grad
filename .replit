@@ -19,6 +19,10 @@ args = "NetworkDashboard"
 task = "workflow.run"
 args = "KubernetesDashboard"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "FuturisticNetworkDashboard"
+
 [[workflows.workflow]]
 name = "NetworkDashboard"
 author = "agent"
@@ -46,6 +50,20 @@ task = "packager.installForAll"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python kubernetes_dashboard.py"
+
+[[workflows.workflow]]
+name = "FuturisticNetworkDashboard"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python futuristic_network_dashboard.py"
 
 [deployment]
 run = ["sh", "-c", "python network_dashboard.py"]
