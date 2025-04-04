@@ -1,6 +1,5 @@
 {pkgs}: {
   deps = [
-    pkgs.unzip
     pkgs.wireshark
     pkgs.tcpdump
     pkgs.sox

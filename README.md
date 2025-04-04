@@ -16,14 +16,12 @@ This dashboard is designed for an FPGA-based IDS (Intrusion Detection System) ha
 
 ## Components
 
-- **Main Traffic Chart**: Shows network traffic for each device with color-coded lines. Unauthorized access appears as red X markers.
-- **Authorized Access Gauge**: Shows percentage of authorized network traffic.
-- **Unauthorized Access Gauge**: Displays percentage of unauthorized traffic detected.
+- **Main Traffic Chart**: Shows network traffic for each device with color-coded lines. Unauthorized access appears as higher spikes.
+- **System Load Gauge**: Shows current system load in real-time.
+- **CPU Usage Gauge**: Displays current CPU utilization.
 - **Memory Usage Chart**: Shows memory utilization by hour.
 - **Network Load Chart**: Provides an alternative view of overall network traffic.
-- **Status Bar**: Shows device statuses and connection information.
-
-When hovering over chart lines, tooltips will display detailed device information including IP addresses and authorization status.
+- **Status Bar**: Shows device statuses and overall authorization percentages.
 
 ## Running the Dashboard
 

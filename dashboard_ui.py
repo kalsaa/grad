@@ -25,8 +25,8 @@ class DashboardUI:
         # Chart components
         self.traffic_chart = None
         self.memory_chart = None
-        self.system_load_gauge = None
-        self.cpu_usage_gauge = None
+        self.auth_pie_chart = None
+        self.unauth_pie_chart = None
         self.bottom_chart = None
         
         # Colors for the UI - matched to the reference image
@@ -158,43 +158,41 @@ class DashboardUI:
         auth_frame.rowconfigure(0, weight=1)
         auth_frame.rowconfigure(1, weight=1)
         
-        # Authorization Status pie chart (top right)
-        auth_status_frame = ttk.Frame(auth_frame, style='TFrame')
-        auth_status_frame.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
+        # System Load gauge chart (top right)
+        unauth_frame = ttk.Frame(auth_frame, style='TFrame')
+        unauth_frame.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
         
-        auth_label = ttk.Label(auth_status_frame, text="Authorized Access", style='Header.TLabel')
-        auth_label.pack(anchor=tk.NW, padx=5, pady=5)
+        unauth_label = ttk.Label(unauth_frame, text="System Load", style='Header.TLabel')
+        unauth_label.pack(anchor=tk.NW, padx=5, pady=5)
         
-        # Using gauge chart for authorized access percentage with green color
-        self.system_load_gauge = chart_components.GaugeChart(
-            auth_status_frame,
-            title="Authorized",
+        self.unauth_pie_chart = chart_components.GaugeChart(
+            unauth_frame,
+            title="System Load",
             max_value=100,
             bg_color=self.colors['chart_bg'],
-            color=self.colors['authorized'],  # Green
+            color=self.colors['authorized'],  # Green for system load
             width=250,
             height=150
         )
-        self.system_load_gauge.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.unauth_pie_chart.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
         # CPU Usage gauge chart (bottom right)
-        cpu_frame = ttk.Frame(auth_frame, style='TFrame')
-        cpu_frame.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
+        auth_frame = ttk.Frame(auth_frame, style='TFrame')
+        auth_frame.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
         
-        cpu_label = ttk.Label(cpu_frame, text="Unauthorized Access", style='Header.TLabel')
-        cpu_label.pack(anchor=tk.NW, padx=5, pady=5)
+        auth_label = ttk.Label(auth_frame, text="CPU Usage", style='Header.TLabel')
+        auth_label.pack(anchor=tk.NW, padx=5, pady=5)
         
-        # Using gauge chart for unauthorized access percentage with orange color
-        self.cpu_usage_gauge = chart_components.GaugeChart(
-            cpu_frame,
-            title="Unauthorized",
+        self.auth_pie_chart = chart_components.GaugeChart(
+            auth_frame,
+            title="CPU Usage",
             max_value=100,
             bg_color=self.colors['chart_bg'],
             color="#ff9800",  # Orange
             width=250,
             height=150
         )
-        self.cpu_usage_gauge.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.auth_pie_chart.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
     
     def _create_memory_chart(self):
         """Create the memory usage chart (middle)"""
@@ -297,9 +295,9 @@ class DashboardUI:
         
         self.traffic_chart.update_data(device_data)
         
-        # Update gauge charts for auth percentages
-        self.system_load_gauge.update_data(self.analyzer.get_auth_percentage())
-        self.cpu_usage_gauge.update_data(self.analyzer.get_unauth_percentage())
+        # Update pie charts
+        self.unauth_pie_chart.update_data(self.analyzer.get_system_load())
+        self.auth_pie_chart.update_data(self.analyzer.get_cpu_usage())
         
         # Update memory chart
         memory_data = self.analyzer.get_memory_usage()

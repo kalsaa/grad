@@ -7,6 +7,5 @@ dependencies = [
     "kamene>=0.32",
     "matplotlib>=3.10.1",
     "numpy>=2.2.4",
-    "pyinstaller>=6.12.0",
     "scapy>=2.6.1",
 ]
