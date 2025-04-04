@@ -1097,6 +1097,11 @@ class NetworkData:
         for device in self.devices:
             connection_details.append(device["connections"])
             
+        # Calculate totals for hover displays
+        total_auth_requests = sum([data[0] for data in self.auth_status])
+        total_unauth_requests = sum([data[1] for data in self.auth_status])
+        total_security_alerts = total_unauth_requests
+        
         # Create response dictionary
         response = {
             'network_traffic': network_values,
@@ -1110,8 +1115,16 @@ class NetworkData:
             'device_names': [d["name"] for d in self.devices],
             'device_ips': [d["ip"] for d in self.devices],
             'paused': self.paused,
-            'selected_device': self.selected_device
+            'selected_device': self.selected_device,
+            
+            # Add totals for hover displays
+            'total_auth_requests': total_auth_requests,
+            'total_unauth_requests': total_unauth_requests,
+            'total_security_alerts': total_security_alerts
         }
+        
+        # Store last data for hover information
+        self.last_data = response
         
         return response
 
@@ -1329,9 +1342,22 @@ class FuturisticNetworkDashboard:
         network_frame = ttk.Frame(self.charts_frame, style='TFrame')
         network_frame.grid(row=0, column=0, columnspan=1, sticky="nsew", padx=8, pady=8)
         
+        # Create title frame with hover capability
+        title_frame = ttk.Frame(network_frame, style='TFrame')
+        title_frame.pack(fill=tk.X, anchor=tk.NW, padx=5, pady=5)
+        
         # Title with icon
-        title_label = ttk.Label(network_frame, text="≡ NETWORK TRAFFIC", style='Title.TLabel')
-        title_label.pack(anchor=tk.NW, padx=5, pady=5)
+        title_label = ttk.Label(title_frame, text="≡ NETWORK TRAFFIC", style='Title.TLabel')
+        title_label.pack(side=tk.LEFT)
+        
+        # Info label for hover stats (initially empty)
+        self.network_info_label = ttk.Label(title_frame, text="", style='Subtitle.TLabel',
+                                         foreground=self.colors['highlight'])
+        self.network_info_label.pack(side=tk.RIGHT, padx=10)
+        
+        # Bind hover events to the title frame
+        title_frame.bind("<Enter>", self._on_network_hover)
+        title_frame.bind("<Leave>", self._on_network_leave)
         
         # Create chart
         self.network_chart = FuturisticLineChart(
@@ -1346,6 +1372,10 @@ class FuturisticNetworkDashboard:
             font_color=self.colors['text']
         )
         self.network_chart.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Bind hover events to the chart canvas to pause traffic
+        self.network_chart.canvas.get_tk_widget().bind("<Enter>", self._on_network_hover)
+        self.network_chart.canvas.get_tk_widget().bind("<Leave>", self._on_network_leave)
     
     def _create_system_load_chart(self):
         """Create the FPGA Load chart"""
@@ -1375,9 +1405,22 @@ class FuturisticNetworkDashboard:
         auth_frame = ttk.Frame(self.charts_frame, style='TFrame')
         auth_frame.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=8, pady=8)
         
-        # Title with icon
-        title_label = ttk.Label(auth_frame, text="✓ NETWORK ACCESS MONITOR", style='Title.TLabel')
-        title_label.pack(anchor=tk.NW, padx=5, pady=5)
+        # Create title frame with hover capability
+        title_frame = ttk.Frame(auth_frame, style='TFrame')
+        title_frame.pack(fill=tk.X, anchor=tk.NW, padx=5, pady=5)
+        
+        # Title with icon - replace check mark with a shield icon
+        title_label = ttk.Label(title_frame, text="🛡️ NETWORK ACCESS MONITOR", style='Title.TLabel')
+        title_label.pack(side=tk.LEFT)
+        
+        # Info label for hover stats (initially empty)
+        self.auth_info_label = ttk.Label(title_frame, text="", style='Subtitle.TLabel',
+                                       foreground=self.colors['highlight'])
+        self.auth_info_label.pack(side=tk.RIGHT, padx=10)
+        
+        # Bind hover events to the title frame
+        title_frame.bind("<Enter>", self._on_auth_hover)
+        title_frame.bind("<Leave>", self._on_auth_leave)
         
         # Create chart for network access monitoring
         self.auth_chart = FuturisticLineChart(
@@ -1392,15 +1435,32 @@ class FuturisticNetworkDashboard:
             font_color=self.colors['text']
         )
         self.auth_chart.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Bind hover events to the chart canvas
+        self.auth_chart.canvas.get_tk_widget().bind("<Enter>", self._on_auth_hover)
+        self.auth_chart.canvas.get_tk_widget().bind("<Leave>", self._on_auth_leave)
     
     def _create_auth_gauge(self):
         """Create Authorized Access gauge"""
         auth_gauge_frame = ttk.Frame(self.charts_frame, style='TFrame')
         auth_gauge_frame.grid(row=1, column=2, sticky="nsew", padx=8, pady=8)
         
-        # Title with icon
-        title_label = ttk.Label(auth_gauge_frame, text="✓ AUTHORIZED ACCESS", style='Title.TLabel')
-        title_label.pack(anchor=tk.NW, padx=5, pady=5)
+        # Create title frame with hover capability
+        title_frame = ttk.Frame(auth_gauge_frame, style='TFrame')
+        title_frame.pack(fill=tk.X, anchor=tk.NW, padx=5, pady=5)
+        
+        # Title with better icon (✓ replaced with 🔐)
+        title_label = ttk.Label(title_frame, text="🔐 AUTHORIZED ACCESS", style='Title.TLabel')
+        title_label.pack(side=tk.LEFT)
+        
+        # Info label for hover stats (initially empty)
+        self.auth_gauge_info_label = ttk.Label(title_frame, text="", style='Subtitle.TLabel',
+                                           foreground=self.colors['highlight'])
+        self.auth_gauge_info_label.pack(side=tk.RIGHT, padx=10)
+        
+        # Bind hover events to the title frame
+        title_frame.bind("<Enter>", self._on_auth_gauge_hover)
+        title_frame.bind("<Leave>", self._on_auth_gauge_leave)
         
         # Create gauge
         self.auth_gauge = FuturisticGaugeChart(
@@ -1413,16 +1473,33 @@ class FuturisticNetworkDashboard:
             font_color=self.colors['text']
         )
         self.auth_gauge.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Bind hover events to the gauge canvas
+        self.auth_gauge.canvas.get_tk_widget().bind("<Enter>", self._on_auth_gauge_hover)
+        self.auth_gauge.canvas.get_tk_widget().bind("<Leave>", self._on_auth_gauge_leave)
     
     def _create_unauth_chart(self):
         """Create the Security Alerts chart"""
         unauth_frame = ttk.Frame(self.charts_frame, style='TFrame')
         unauth_frame.grid(row=2, column=0, columnspan=2, sticky="nsew", padx=8, pady=8)
         
+        # Create title frame with hover capability
+        title_frame = ttk.Frame(unauth_frame, style='TFrame')
+        title_frame.pack(fill=tk.X, anchor=tk.NW, padx=5, pady=5)
+        
         # Title with alert icon
-        title_label = ttk.Label(unauth_frame, text="⚠ SECURITY ALERTS", style='Title.TLabel',
+        title_label = ttk.Label(title_frame, text="⚠ SECURITY ALERTS", style='Title.TLabel',
                             foreground=self.colors['orange'])
-        title_label.pack(anchor=tk.NW, padx=5, pady=5)
+        title_label.pack(side=tk.LEFT)
+        
+        # Info label for hover stats (initially empty)
+        self.unauth_info_label = ttk.Label(title_frame, text="", style='Subtitle.TLabel',
+                                        foreground=self.colors['orange'])
+        self.unauth_info_label.pack(side=tk.RIGHT, padx=10)
+        
+        # Bind hover events to the title frame
+        title_frame.bind("<Enter>", self._on_unauth_hover)
+        title_frame.bind("<Leave>", self._on_unauth_leave)
         
         # Create chart for unauthorized access monitoring
         self.unauth_chart = FuturisticLineChart(
@@ -1437,16 +1514,33 @@ class FuturisticNetworkDashboard:
             font_color=self.colors['text']
         )
         self.unauth_chart.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Bind hover events to the chart canvas
+        self.unauth_chart.canvas.get_tk_widget().bind("<Enter>", self._on_unauth_hover)
+        self.unauth_chart.canvas.get_tk_widget().bind("<Leave>", self._on_unauth_leave)
     
     def _create_unauth_gauge(self):
         """Create Unauthorized Access gauge"""
         unauth_gauge_frame = ttk.Frame(self.charts_frame, style='TFrame')
         unauth_gauge_frame.grid(row=2, column=2, sticky="nsew", padx=8, pady=8)
         
+        # Create title frame with hover capability
+        title_frame = ttk.Frame(unauth_gauge_frame, style='TFrame')
+        title_frame.pack(fill=tk.X, anchor=tk.NW, padx=5, pady=5)
+        
         # Title with alert icon
-        title_label = ttk.Label(unauth_gauge_frame, text="⚠ UNAUTHORIZED ACCESS", 
+        title_label = ttk.Label(title_frame, text="⚠ UNAUTHORIZED ACCESS", 
                             style='Title.TLabel', foreground=self.colors['orange'])
-        title_label.pack(anchor=tk.NW, padx=5, pady=5)
+        title_label.pack(side=tk.LEFT)
+        
+        # Info label for hover stats (initially empty)
+        self.unauth_gauge_info_label = ttk.Label(title_frame, text="", style='Subtitle.TLabel',
+                                             foreground=self.colors['orange'])
+        self.unauth_gauge_info_label.pack(side=tk.RIGHT, padx=10)
+        
+        # Bind hover events to the title frame
+        title_frame.bind("<Enter>", self._on_unauth_gauge_hover)
+        title_frame.bind("<Leave>", self._on_unauth_gauge_leave)
         
         # Create gauge
         self.unauth_gauge = FuturisticGaugeChart(
@@ -1459,6 +1553,10 @@ class FuturisticNetworkDashboard:
             font_color=self.colors['text']
         )
         self.unauth_gauge.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Bind hover events to the gauge canvas
+        self.unauth_gauge.canvas.get_tk_widget().bind("<Enter>", self._on_unauth_gauge_hover)
+        self.unauth_gauge.canvas.get_tk_widget().bind("<Leave>", self._on_unauth_gauge_leave)
     
     def update_ui(self):
         """Update the UI with the latest data"""
@@ -1498,6 +1596,10 @@ class FuturisticNetworkDashboard:
             # Show all devices, unpause data
             self.node_data.paused = False
             self.node_data.selected_device = None
+            
+            # Close the detail window if it exists
+            if hasattr(self, 'detail_window') and self.detail_window.winfo_exists():
+                self.detail_window.destroy()
         else:
             # Extract device index (0-6) from the selected device string
             try:
@@ -1646,6 +1748,75 @@ class FuturisticNetworkDashboard:
             # Update existing window with new device
             self.detail_window.title(f"Device {device_idx+1} Details")
             # Update window content here...
+    
+    def _on_network_hover(self, event):
+        """Handle hover over network traffic chart - pauses the chart updates"""
+        # Pause data updates
+        self.node_data.paused = True
+        
+        # Show tooltip with network traffic details if available
+        if hasattr(self.node_data, 'last_data'):
+            total_traffic = sum(self.node_data.last_data['network_traffic'])
+            self.network_info_label.config(text=f"Total Traffic: {total_traffic:.1f} MB/s")
+    
+    def _on_network_leave(self, event):
+        """Handle mouse leave event - resumes chart updates"""
+        # Resume data updates if we're not looking at a specific device
+        if not self.node_data.selected_device:
+            self.node_data.paused = False
+        
+        # Clear tooltip
+        self.network_info_label.config(text="")
+    
+    def _on_auth_hover(self, event):
+        """Show details about network access monitoring on hover"""
+        if hasattr(self.node_data, 'last_data'):
+            data = self.node_data.last_data
+            if 'total_auth_requests' in data and 'total_unauth_requests' in data:
+                total_requests = data['total_auth_requests'] + data['total_unauth_requests']
+                auth_text = f"Total Access Requests: {total_requests:,}"
+                auth_text += f" | Authorized: {data['total_auth_requests']:,}"
+                self.auth_info_label.config(text=auth_text)
+    
+    def _on_auth_leave(self, event):
+        """Clear the auth info label on mouse leave"""
+        self.auth_info_label.config(text="")
+    
+    def _on_auth_gauge_hover(self, event):
+        """Show details about authorization rate on hover"""
+        if hasattr(self.node_data, 'last_data'):
+            data = self.node_data.last_data
+            if 'auth_percent' in data:
+                auth_text = f"Authorization Rate: {data['auth_percent']}%"
+                self.auth_gauge_info_label.config(text=auth_text)
+    
+    def _on_auth_gauge_leave(self, event):
+        """Clear the auth gauge info label on mouse leave"""
+        self.auth_gauge_info_label.config(text="")
+    
+    def _on_unauth_hover(self, event):
+        """Show details about security alerts on hover"""
+        if hasattr(self.node_data, 'last_data'):
+            data = self.node_data.last_data
+            if 'total_security_alerts' in data:
+                alert_text = f"Total Alerts: {data['total_security_alerts']:,}"
+                self.unauth_info_label.config(text=alert_text)
+    
+    def _on_unauth_leave(self, event):
+        """Clear the unauth info label on mouse leave"""
+        self.unauth_info_label.config(text="")
+    
+    def _on_unauth_gauge_hover(self, event):
+        """Show details about unauthorized access on hover"""
+        if hasattr(self.node_data, 'last_data'):
+            data = self.node_data.last_data
+            if 'unauth_percent' in data:
+                unauth_text = f"Alert Level: {data['unauth_percent']}%"
+                self.unauth_gauge_info_label.config(text=unauth_text)
+    
+    def _on_unauth_gauge_leave(self, event):
+        """Clear the unauth gauge info label on mouse leave"""
+        self.unauth_gauge_info_label.config(text="")
     
     def _format_bytes(self, bytes_value):
         """Format bytes to human-readable format"""
