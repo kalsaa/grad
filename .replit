@@ -13,44 +13,7 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "NetworkMonitoringDashboard"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "network_dashboard"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
 args = "NetworkDashboard"
-
-[[workflows.workflow]]
-name = "NetworkMonitoringDashboard"
-author = "agent"
-
-[workflows.workflow.metadata]
-agentRequireRestartOnSave = false
-
-[[workflows.workflow.tasks]]
-task = "packager.installForAll"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python network_dashboard.py"
-waitForPort = 5000
-
-[[workflows.workflow]]
-name = "network_dashboard"
-author = "agent"
-
-[workflows.workflow.metadata]
-agentRequireRestartOnSave = false
-
-[[workflows.workflow.tasks]]
-task = "packager.installForAll"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python network_dashboard.py"
 
 [[workflows.workflow]]
 name = "NetworkDashboard"
