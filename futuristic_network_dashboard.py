@@ -341,6 +341,14 @@ class FuturisticLineChart:
         self.line_width = line_width
         self.font_color = font_color
         
+        # Store connection details for hover functionality
+        self.connection_details = None
+        self.device_names = None
+        self.device_ips = None
+        
+        # Tooltip for displaying detailed information when hovering
+        self.detail_tooltip = None
+        
         # Neon color dictionary - these will create the glowing effect
         self.neon_colors = {
             '#00d084': '#7fffd4', # Green to lighter teal
@@ -451,8 +459,16 @@ class FuturisticLineChart:
         padding = np.full(window-1, data[0])
         return np.concatenate([padding, smoothed])
     
-    def update_data(self, new_values, timestamp=None):
-        """Update the chart with new data points"""
+    def update_data(self, new_values, timestamp=None, connection_details=None, device_names=None, device_ips=None):
+        """Update the chart with new data points and connection details for hover information"""
+        # Store connection details for hover functionality if provided
+        if connection_details is not None:
+            self.connection_details = connection_details
+        if device_names is not None:
+            self.device_names = device_names
+        if device_ips is not None:
+            self.device_ips = device_ips
+            
         # Keep a history of the data for smoother transitions
         self.data_history.append(new_values)
         if len(self.data_history) > 30:  # Keep only the last 30 data points
@@ -519,7 +535,7 @@ class FuturisticLineChart:
         self.canvas.draw()
     
     def on_hover(self, event):
-        """Handle mouse hover event"""
+        """Handle mouse hover event with detailed connection information"""
         if event.inaxes == self.ax:
             self.tooltip.place_forget()
             
@@ -527,16 +543,114 @@ class FuturisticLineChart:
             bbox = self.ax.get_window_extent()
             x, y = event.x, event.y
             
-            # Create tooltip text
+            # See if we're hovering over a line point
+            closest_line_idx = None
+            closest_dist = float('inf')
+            
+            # Find closest data point
+            for i, line in enumerate(self.lines):
+                # Check if there's line data available
+                if not line.get_xdata().size or not line.get_ydata().size:
+                    continue
+                
+                # Get the line data
+                line_xdata = line.get_xdata()
+                line_ydata = line.get_ydata()
+                
+                # Find the closest point on the line
+                for j in range(len(line_xdata)):
+                    # Convert data coordinates to display coordinates
+                    display_coords = self.ax.transData.transform((line_xdata[j], line_ydata[j]))
+                    dist = np.sqrt((display_coords[0] - event.x)**2 + (display_coords[1] - event.y)**2)
+                    
+                    if dist < closest_dist and dist < 50:  # Within 50 pixels
+                        closest_dist = dist
+                        closest_line_idx = i
+                        
+            # Basic hover information
             text = f"Value: {event.ydata:.2f} at x={event.xdata:.1f}"
             
-            # Show tooltip
-            self.tooltip.config(text=text)
-            self.tooltip.place(x=x+10, y=y+10)
+            # If we have connection details and we're hovering near a line
+            if self.connection_details and closest_line_idx is not None and closest_line_idx < len(self.connection_details):
+                device_connections = self.connection_details[closest_line_idx]
+                if device_connections and len(device_connections) > 0:
+                    device_name = self.device_names[closest_line_idx] if self.device_names else f"Device {closest_line_idx+1}"
+                    device_ip = self.device_ips[closest_line_idx] if self.device_ips else "Unknown IP"
+                    
+                    # Create detailed tooltip with connection information
+                    text = f"{device_name} ({device_ip})\n"
+                    text += f"Traffic: {event.ydata:.2f} Mbps\n\n"
+                    text += "Active Connections:\n"
+                    
+                    # List up to 3 connections to keep tooltip manageable
+                    for i, conn in enumerate(device_connections[:3]):
+                        # Format bytes in a readable way
+                        bytes_sent = self._format_bytes(conn["bytes_sent"]) if "bytes_sent" in conn else "N/A"
+                        bytes_received = self._format_bytes(conn["bytes_received"]) if "bytes_received" in conn else "N/A"
+                        
+                        text += f"{i+1}. {conn['protocol']} → {conn['destination']}:{conn['port']}\n"
+                        text += f"   Status: {conn['status']} | Sent: {bytes_sent} | Recv: {bytes_received}\n"
+                        if "authorized" in conn:
+                            auth_status = "✓ Authorized" if conn["authorized"] else "⚠ Unauthorized" 
+                            text += f"   {auth_status}\n"
+                    
+                    if len(device_connections) > 3:
+                        text += f"\n+ {len(device_connections) - 3} more connections"
+            
+            # Create a more advanced tooltip if not already created
+            if not hasattr(self, 'detail_tooltip') or not self.detail_tooltip:
+                self.detail_tooltip = tk.Label(
+                    self.parent, 
+                    text=text,
+                    bg="#152238", 
+                    fg="#e0f2ff",
+                    font=("Segoe UI", 9),
+                    bd=1,
+                    relief=tk.SOLID,
+                    padx=10,
+                    pady=6,
+                    justify=tk.LEFT,
+                    wraplength=350
+                )
+            else:
+                self.detail_tooltip.config(text=text)
+            
+            # Position and display tooltip
+            # Check if tooltip would go off screen and adjust if needed
+            max_x = self.canvas_widget.winfo_width()
+            max_y = self.canvas_widget.winfo_height()
+            
+            tooltip_x = x + 15
+            tooltip_y = y + 15
+            
+            # Estimate tooltip size (approx 8 pixels per character, 18 pixels per line)
+            line_count = text.count('\n') + 1
+            tooltip_width = min(350, max(len(max(text.split('\n'), key=len)) * 8, 100))
+            tooltip_height = line_count * 18
+            
+            # Adjust if would go off right edge
+            if tooltip_x + tooltip_width > max_x:
+                tooltip_x = max(10, x - tooltip_width - 10)
+                
+            # Adjust if would go off bottom edge
+            if tooltip_y + tooltip_height > max_y:
+                tooltip_y = max(10, y - tooltip_height - 10)
+            
+            self.detail_tooltip.place(x=tooltip_x, y=tooltip_y)
+    
+    def _format_bytes(self, bytes_value):
+        """Format bytes to human-readable format"""
+        for unit in ['B', 'KB', 'MB', 'GB']:
+            if bytes_value < 1024.0:
+                return f"{bytes_value:.1f} {unit}"
+            bytes_value /= 1024.0
+        return f"{bytes_value:.1f} TB"
     
     def on_leave(self, event):
         """Handle mouse leave event"""
         self.tooltip.place_forget()
+        if hasattr(self, 'detail_tooltip') and self.detail_tooltip:
+            self.detail_tooltip.place_forget()
     
     def pack(self, **kwargs):
         """Pack the chart widget"""
@@ -713,15 +827,23 @@ class NetworkData:
         self.current_auth_percent = 85.0     # Percentage of authorized traffic
         self.current_unauth_percent = 15.0   # Percentage of unauthorized traffic
         
+        # Common protocols, ports and destinations
+        self.protocols = ["TCP", "UDP", "HTTP", "HTTPS", "DNS", "FTP", "SSH"]
+        self.common_ports = [80, 443, 22, 21, 53, 8080, 3306, 5432, 25, 110]
+        self.destinations = [
+            "10.0.0.1", "172.16.0.5", "192.168.10.25", "10.10.10.1", 
+            "8.8.8.8", "1.1.1.1", "204.152.189.116", "13.107.21.200"
+        ]
+        
         # Device data for 7 devices
         self.devices = [
-            {"name": "Device 1", "ip": "192.168.1.100", "traffic": []},
-            {"name": "Device 2", "ip": "192.168.1.101", "traffic": []},
-            {"name": "Device 3", "ip": "192.168.1.102", "traffic": []},
-            {"name": "Device 4", "ip": "192.168.1.103", "traffic": []},
-            {"name": "Device 5", "ip": "192.168.1.104", "traffic": []},
-            {"name": "Device 6", "ip": "192.168.1.105", "traffic": []},
-            {"name": "Device 7", "ip": "192.168.1.106", "traffic": []}
+            {"name": "Device 1", "ip": "192.168.1.100", "traffic": [], "connections": []},
+            {"name": "Device 2", "ip": "192.168.1.101", "traffic": [], "connections": []},
+            {"name": "Device 3", "ip": "192.168.1.102", "traffic": [], "connections": []},
+            {"name": "Device 4", "ip": "192.168.1.103", "traffic": [], "connections": []},
+            {"name": "Device 5", "ip": "192.168.1.104", "traffic": [], "connections": []},
+            {"name": "Device 6", "ip": "192.168.1.105", "traffic": [], "connections": []},
+            {"name": "Device 7", "ip": "192.168.1.106", "traffic": [], "connections": []}
         ]
         
         # System load for 3 lines
@@ -733,11 +855,97 @@ class NetworkData:
         
         # Initialize with some data
         self._generate_initial_data()
+        
+        # Generate initial connection data for each device
+        self._generate_connection_details()
     
     def _generate_initial_data(self):
         """Initialize with 60 data points of historical data"""
         for _ in range(60):
             self._generate_next_data_point()
+    
+    def _generate_connection_details(self):
+        """Generate detailed connection information for each device"""
+        for device in self.devices:
+            source_ip = device["ip"]
+            
+            # Each device has 2-4 active connections
+            num_connections = random.randint(2, 4)
+            connections = []
+            
+            for _ in range(num_connections):
+                dest_ip = random.choice(self.destinations)
+                protocol = random.choice(self.protocols)
+                port = random.choice(self.common_ports)
+                
+                # Add status and timestamp
+                status = "ESTABLISHED" if random.random() < 0.8 else random.choice(["LISTENING", "TIME_WAIT", "CLOSE_WAIT"])
+                timestamp = time.time() - random.uniform(0, 300)  # Connection started between 0-300 seconds ago
+                
+                # Create a detailed connection object
+                connection = {
+                    "source": source_ip,
+                    "destination": dest_ip,
+                    "protocol": protocol,
+                    "port": port,
+                    "status": status,
+                    "bytes_sent": int(random.uniform(1024, 1024*1024)),
+                    "bytes_received": int(random.uniform(1024, 1024*1024)),
+                    "packets": int(random.uniform(10, 1000)),
+                    "created": timestamp,
+                    "duration": time.time() - timestamp,
+                    "authorized": random.random() < 0.85  # 85% authorized connections
+                }
+                
+                connections.append(connection)
+            
+            device["connections"] = connections
+    
+    def _update_connection_details(self):
+        """Update connection details for each device"""
+        for device in self.devices:
+            # 20% chance to update connection details for this device
+            if random.random() < 0.2:
+                # Update existing connections (bytes, packets, duration)
+                for conn in device["connections"]:
+                    conn["bytes_sent"] += int(random.uniform(1024, 8192))
+                    conn["bytes_received"] += int(random.uniform(1024, 8192))
+                    conn["packets"] += int(random.uniform(5, 20))
+                    conn["duration"] = time.time() - conn["created"]
+                    
+                    # 5% chance to change status
+                    if random.random() < 0.05:
+                        conn["status"] = random.choice(["ESTABLISHED", "LISTENING", "TIME_WAIT", "CLOSE_WAIT"])
+                
+                # 10% chance to replace a connection with a new one
+                if random.random() < 0.1 and device["connections"]:
+                    # Remove a random connection
+                    conn_index = random.randint(0, len(device["connections"])-1)
+                    device["connections"].pop(conn_index)
+                    
+                    # Add a new connection
+                    source_ip = device["ip"]
+                    dest_ip = random.choice(self.destinations)
+                    protocol = random.choice(self.protocols)
+                    port = random.choice(self.common_ports)
+                    status = "ESTABLISHED"
+                    timestamp = time.time()
+                    
+                    new_conn = {
+                        "source": source_ip,
+                        "destination": dest_ip,
+                        "protocol": protocol,
+                        "port": port,
+                        "status": status,
+                        "bytes_sent": int(random.uniform(1024, 4096)),
+                        "bytes_received": int(random.uniform(1024, 4096)),
+                        "packets": int(random.uniform(5, 20)),
+                        "created": timestamp,
+                        "duration": 0,
+                        "authorized": random.random() < 0.85  # 85% authorized connections
+                    }
+                    
+                    device["connections"].append(new_conn)
     
     def _generate_next_data_point(self):
         """Generate the next data point with randomized fluctuations"""
@@ -803,6 +1011,9 @@ class NetworkData:
             current_loads.append(load['value'])
         
         self.system_load.append(current_loads)
+        
+        # Update connection details for each device
+        self._update_connection_details()
     
     def update(self):
         """Generate a new data point and return current metrics"""
@@ -815,6 +1026,11 @@ class NetworkData:
             
         # Extract latest auth status data
         auth_data = self.auth_status[-1] if self.auth_status else [0, 0]
+        
+        # Extract connection details for each device
+        connection_details = []
+        for device in self.devices:
+            connection_details.append(device["connections"])
             
         return {
             'network_traffic': network_values,
@@ -823,7 +1039,10 @@ class NetworkData:
             'auth_counts': auth_data,
             'network_history': self.network_traffic,
             'system_load': self.system_load[-1],
-            'timestamp': self.timestamps[-1]
+            'timestamp': self.timestamps[-1],
+            'connections': connection_details,
+            'device_names': [d["name"] for d in self.devices],
+            'device_ips': [d["ip"] for d in self.devices]
         }
 
 
@@ -1153,8 +1372,14 @@ class FuturisticNetworkDashboard:
             # Get the latest data
             data = self.node_data.update()
             
-            # Update Network Traffic chart (all 7 devices)
-            self.network_chart.update_data(data['network_traffic'], data['timestamp'])
+            # Update Network Traffic chart (all 7 devices) with connection details for hover
+            self.network_chart.update_data(
+                data['network_traffic'], 
+                data['timestamp'],
+                connection_details=data['connections'] if 'connections' in data else None,
+                device_names=data['device_names'] if 'device_names' in data else None,
+                device_ips=data['device_ips'] if 'device_ips' in data else None
+            )
             
             # Update FPGA Load chart with 3 values
             self.system_load_chart.update_data(data['system_load'], data['timestamp'])
