@@ -18,6 +18,7 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.pyplot as plt
 from matplotlib.patches import Wedge, FancyArrowPatch
 import matplotlib.patches as patches
+import matplotlib.patheffects as path_effects
 from matplotlib.ticker import MaxNLocator
 from matplotlib.colors import LinearSegmentedColormap, to_rgba
 from matplotlib.collections import LineCollection
@@ -660,7 +661,7 @@ class FuturisticGaugeChart:
         percent_text = f"{percentage:.1f}%"
         self.ax.text(0, 0, percent_text, ha='center', va='center', 
                     fontsize=18, fontweight='bold', color=self.font_color,
-                    path_effects=[patches.withStroke(linewidth=3, foreground=self.bg_color)])
+                    path_effects=[path_effects.withStroke(linewidth=3, foreground=self.bg_color)])
         
         # Add subtitle text
         if self.title:
