@@ -479,37 +479,25 @@ class FuturisticLineChart:
         # Get the x values for plotting
         x = np.arange(len(smooth_data[0])) if smooth_data else []
         
-        # Plot each data series with a neon glowing effect
+        # Plot each data series with smooth curves like in the reference image
         for i, values in enumerate(smooth_data):
             if i < len(self.colors) and i < len(self.labels):
                 base_color = self.colors[i]
-                glow_color = self.neon_colors.get(base_color, '#ffffff')
                 
-                # Add multiple layers to create glow effect (from largest/dimmest to smallest/brightest)
-                # Layer 1: Wide dim glow
-                self.ax.plot(x, values, color=glow_color, alpha=0.2, linewidth=self.line_width + 6, 
-                           solid_capstyle='round', solid_joinstyle='round')
+                # Draw the main line with high-quality smoothing and rounded joins
+                line = self.ax.plot(x, values, color=base_color, 
+                                  linewidth=self.line_width,
+                                  solid_capstyle='round', 
+                                  solid_joinstyle='round',
+                                  path_effects=[path_effects.SimpleLineShadow(offset=(1, -1), alpha=0.3),
+                                                path_effects.Normal()])
                 
-                # Layer 2: Medium glow
-                self.ax.plot(x, values, color=glow_color, alpha=0.4, linewidth=self.line_width + 3, 
-                           solid_capstyle='round', solid_joinstyle='round')
-                
-                # Layer 3: Core glow
-                self.ax.plot(x, values, color=glow_color, alpha=0.6, linewidth=self.line_width + 1, 
-                           solid_capstyle='round', solid_joinstyle='round')
-                
-                # Layer 4: Bright core
-                line = self.ax.plot(x, values, color=base_color, alpha=1.0, linewidth=self.line_width,
-                                  solid_capstyle='round', solid_joinstyle='round')
-                
-                # Add a dot at the end with glow effect
+                # Add a dot at the end of each line
                 if len(values) > 0:
-                    # Outer glow
-                    self.ax.scatter([x[-1]], [values[-1]], s=80, color=glow_color, alpha=0.3)
-                    self.ax.scatter([x[-1]], [values[-1]], s=50, color=glow_color, alpha=0.5)
-                    # Inner dot
-                    self.ax.scatter([x[-1]], [values[-1]], s=25, color=base_color, 
-                                  edgecolor='white', linewidth=0.5, zorder=10)
+                    # Add an endpoint dot - subtle shadow first then the main dot
+                    self.ax.scatter([x[-1]], [values[-1]], s=30, color='black', alpha=0.2, zorder=9)
+                    self.ax.scatter([x[-1]], [values[-1]], s=20, color=base_color, 
+                                   edgecolor='white', linewidth=0.5, zorder=10)
                 
                 self.lines.append(line[0])
         
@@ -973,11 +961,12 @@ class FuturisticNetworkDashboard:
         time_frame = ttk.Frame(self.header_frame, style='Header.TFrame')
         time_frame.pack(side=tk.RIGHT, padx=20, pady=10)
         
-        # Digital clock display
+        # Digital clock display using SF Pro (Apple iPhone font)
+        # If SF Pro is not available, fall back to a similar sans-serif font
         self.time_display = ttk.Label(time_frame, 
                                    text=time.strftime("%H:%M:%S"), 
                                    style='Header.TLabel',
-                                   font=('Segoe UI', 11, 'bold'),
+                                   font=('-apple-system', 12, 'bold'),
                                    foreground=self.colors['highlight'])
         self.time_display.pack(side=tk.RIGHT, padx=10)
         
@@ -985,10 +974,12 @@ class FuturisticNetworkDashboard:
         self._update_clock()
     
     def _update_clock(self):
-        """Update the digital clock"""
+        """Update the digital clock with accurate time"""
         current_time = time.strftime("%H:%M:%S")
         self.time_display.config(text=current_time)
-        self.root.after(1000, self._update_clock)
+        # Schedule the update to occur precisely at the next second
+        msecs_remaining = 1000 - (int(time.time() * 1000) % 1000)
+        self.root.after(msecs_remaining, self._update_clock)
     
     def _create_charts_area(self):
         """Create the area for charts and visualizations"""
@@ -1044,18 +1035,18 @@ class FuturisticNetworkDashboard:
         self.network_chart.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
     
     def _create_system_load_chart(self):
-        """Create the System Load chart"""
+        """Create the FPGA Load chart"""
         load_frame = ttk.Frame(self.charts_frame, style='TFrame')
         load_frame.grid(row=0, column=1, columnspan=2, sticky="nsew", padx=8, pady=8)
         
         # Title with icon
-        title_label = ttk.Label(load_frame, text="◉ SYSTEM LOAD", style='Title.TLabel')
+        title_label = ttk.Label(load_frame, text="◉ FPGA LOAD", style='Title.TLabel')
         title_label.pack(anchor=tk.NW, padx=5, pady=5)
         
         # Create chart
         self.system_load_chart = FuturisticLineChart(
             load_frame,
-            "System Load",
+            "FPGA Load",
             ["Short-term", "Medium-term", "Long-term"],
             self.load_colors,
             bg_color=self.colors['chart_bg'],
@@ -1165,7 +1156,7 @@ class FuturisticNetworkDashboard:
             # Update Network Traffic chart (all 7 devices)
             self.network_chart.update_data(data['network_traffic'], data['timestamp'])
             
-            # Update System Load chart with 3 values
+            # Update FPGA Load chart with 3 values
             self.system_load_chart.update_data(data['system_load'], data['timestamp'])
             
             # Update Auth/Unauth charts
