@@ -858,18 +858,18 @@ class FuturisticNetworkDashboard:
             'red': '#f44336'          # Red for alerts
         }
         
-        # Chart colors - adjusted for higher contrast and futuristic look
-        self.load_colors = ['#00d084', '#00c2ff', '#ff9800']  # Green, Blue, Orange
+        # Chart colors - vibrant modern palette for FPGA load
+        self.load_colors = ['#4287f5', '#00b3ff', '#36d6a1']  # Royal Blue, Azure, Aqua Green
         
-        # Device colors (one for each of the 7 devices)
+        # Device colors (one for each of the 7 devices) - Enhanced color palette
         self.device_colors = [
-            '#00d084',  # Green
-            '#00c2ff',  # Cyan
-            '#ff9800',  # Orange
-            '#d400ab',  # Magenta
-            '#00cca4',  # Teal
-            '#ff4569',  # Red
-            '#c0ff21'   # Neon green-yellow
+            '#00bfff',  # Deep Sky Blue
+            '#ff3e6c',  # Crimson
+            '#ffe100',  # Vivid Yellow
+            '#7b42ff',  # Vibrant Purple
+            '#00e676',  # Bright Green
+            '#ff9100',  # Amber Orange
+            '#ff16e9'   # Hot Pink
         ]
         
         # UI components
