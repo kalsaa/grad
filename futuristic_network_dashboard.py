@@ -328,7 +328,7 @@ class NetworkAnalyzer:
 class FuturisticLineChart:
     """Enhanced line chart with futuristic look for visualizing network traffic over time"""
     def __init__(self, parent, title, labels, colors, bg_color='#080f1c', grid_color='#143062', 
-                 width=600, height=300, line_width=2.0, font_color='#e0f2ff'):
+                 width=600, height=300, line_width=3.0, font_color='#e0f2ff'):
         self.parent = parent
         self.title = title
         self.labels = labels
@@ -340,6 +340,17 @@ class FuturisticLineChart:
         self.line_width = line_width
         self.font_color = font_color
         
+        # Neon color dictionary - these will create the glowing effect
+        self.neon_colors = {
+            '#00d084': '#7fffd4', # Green to lighter teal
+            '#00c2ff': '#80e5ff', # Cyan to lighter cyan
+            '#ff9800': '#ffcc80', # Orange to light orange
+            '#d400ab': '#ff80dd', # Magenta to pink
+            '#00cca4': '#80ffe5', # Teal to lighter teal
+            '#ff4569': '#ff99ac', # Red to pink
+            '#c0ff21': '#e5ffb3'  # Yellow-green to lighter version
+        }
+        
         # Create figure and axes
         plt.style.use('dark_background')
         self.fig = Figure(figsize=(width/100, height/100), dpi=100)
@@ -350,7 +361,7 @@ class FuturisticLineChart:
         self.fig.patch.set_facecolor(bg_color)
         
         # Add grid
-        self.ax.grid(True, linestyle='-', alpha=0.2, color=grid_color)
+        self.ax.grid(True, linestyle='-', alpha=0.15, color=grid_color)
         
         # Create canvas
         self.canvas = FigureCanvasTkAgg(self.fig, master=self.parent)
@@ -360,6 +371,7 @@ class FuturisticLineChart:
         # Initialize empty plot
         self.lines = []
         self.hover_annotation = None
+        self.data_history = []
         
         # Create tooltip
         self.tooltip = tk.Label(
@@ -375,8 +387,8 @@ class FuturisticLineChart:
         )
         
         # Connect events
-        self.fig.canvas.mpl_connect('motion_notify_event', self.on_hover)
-        self.fig.canvas.mpl_connect('figure_leave_event', self.on_leave)
+        self.canvas.mpl_connect('motion_notify_event', self.on_hover)
+        self.canvas.mpl_connect('figure_leave_event', self.on_leave)
         
         # Initial plot setup
         self._setup_plot()
@@ -408,14 +420,43 @@ class FuturisticLineChart:
         self.ax.spines['bottom'].set_color(self.grid_color)
         self.ax.spines['left'].set_color(self.grid_color)
         
-        # Add subtle background gradient
-        self.ax.axhspan(0, 20, color=self.grid_color, alpha=0.05)
+        # Add subtle background gradient effect like in the reference image
+        gradient = np.linspace(0, 1, 100).reshape(1, -1)
+        gradient = np.vstack((gradient, gradient))
+        extent = [0, 1, 0, 0.15]
+        
+        # Create a very subtle background hill effect
+        x = np.linspace(0, 1, 100)
+        y_base = 0
+        
+        for i in range(3):
+            # Create wavy background hills
+            phase = i * np.pi / 3
+            y = 0.03 * np.sin(8 * x + phase) + 0.05 * np.sin(5 * x + phase) + y_base
+            self.ax.fill_between(x, y_base, y, color=self.grid_color, alpha=0.07, zorder=-10)
+            y_base = y
         
         # Adjust layout
         self.fig.tight_layout()
     
+    def _get_smooth_data(self, data, window=5):
+        """Create smoothed version of data for more natural curves"""
+        if len(data) < window:
+            return data
+        
+        # Simple moving average for smoothing
+        smoothed = np.convolve(data, np.ones(window)/window, mode='valid')
+        # Pad beginning to match original length
+        padding = np.full(window-1, data[0])
+        return np.concatenate([padding, smoothed])
+    
     def update_data(self, new_values, timestamp=None):
         """Update the chart with new data points"""
+        # Keep a history of the data for smoother transitions
+        self.data_history.append(new_values)
+        if len(self.data_history) > 30:  # Keep only the last 30 data points
+            self.data_history = self.data_history[-30:]
+        
         # Clear previous plot
         self.ax.clear()
         self.lines = []
@@ -423,39 +464,53 @@ class FuturisticLineChart:
         # Setup plot again
         self._setup_plot()
         
-        # Plot data with gradient lines for a futuristic look
-        x = np.arange(len(new_values))
+        # Create smooth data by interpolating between points
+        smooth_data = []
         
-        for i, value in enumerate(new_values):
+        # For each data series (device or metric)
+        for i in range(len(new_values)):
             if i < len(self.colors) and i < len(self.labels):
-                # Create line with gradient
-                points = np.array([x, new_values]).T.reshape(-1, 1, 2)
-                segments = np.concatenate([points[:-1], points[1:]], axis=1)
-                norm = plt.Normalize(0, len(new_values))
+                # Extract history for this series
+                series_history = [d[i] if i < len(d) else 0 for d in self.data_history]
+                # Create smoother curve by interpolating between points
+                smooth_data.append(self._get_smooth_data(series_history))
+        
+        # Get the x values for plotting
+        x = np.arange(len(smooth_data[0])) if smooth_data else []
+        
+        # Plot each data series with a neon glowing effect
+        for i, values in enumerate(smooth_data):
+            if i < len(self.colors) and i < len(self.labels):
+                base_color = self.colors[i]
+                glow_color = self.neon_colors.get(base_color, '#ffffff')
                 
-                # Use different colormaps based on index
-                if i % 3 == 0:
-                    cmap = cmap_green
-                elif i % 3 == 1:
-                    cmap = cmap_blue
-                else:
-                    cmap = cmap_orange
-                    
-                lc = LineCollection(segments, cmap=cmap, linewidth=self.line_width)
-                lc.set_array(np.linspace(0, 1, len(new_values)))
-                line = self.ax.add_collection(lc)
+                # Add multiple layers to create glow effect (from largest/dimmest to smallest/brightest)
+                # Layer 1: Wide dim glow
+                self.ax.plot(x, values, color=glow_color, alpha=0.2, linewidth=self.line_width + 6, 
+                           solid_capstyle='round', solid_joinstyle='round')
                 
-                # Add a subtle glow effect
-                for w in [3.0, 2.0]:
-                    self.ax.plot(range(len(new_values)), new_values, 
-                             color=self.colors[i], alpha=0.05, linewidth=w+2)
+                # Layer 2: Medium glow
+                self.ax.plot(x, values, color=glow_color, alpha=0.4, linewidth=self.line_width + 3, 
+                           solid_capstyle='round', solid_joinstyle='round')
                 
-                # Add a dot at the end
-                self.ax.scatter(len(new_values)-1, new_values[-1], 
-                            color=self.colors[i], s=30, zorder=5,
-                            edgecolor='white', linewidth=0.5)
+                # Layer 3: Core glow
+                self.ax.plot(x, values, color=glow_color, alpha=0.6, linewidth=self.line_width + 1, 
+                           solid_capstyle='round', solid_joinstyle='round')
                 
-                self.lines.append(line)
+                # Layer 4: Bright core
+                line = self.ax.plot(x, values, color=base_color, alpha=1.0, linewidth=self.line_width,
+                                  solid_capstyle='round', solid_joinstyle='round')
+                
+                # Add a dot at the end with glow effect
+                if len(values) > 0:
+                    # Outer glow
+                    self.ax.scatter([x[-1]], [values[-1]], s=80, color=glow_color, alpha=0.3)
+                    self.ax.scatter([x[-1]], [values[-1]], s=50, color=glow_color, alpha=0.5)
+                    # Inner dot
+                    self.ax.scatter([x[-1]], [values[-1]], s=25, color=base_color, 
+                                  edgecolor='white', linewidth=0.5, zorder=10)
+                
+                self.lines.append(line[0])
         
         # Add current timestamp if provided
         if timestamp:
@@ -476,31 +531,23 @@ class FuturisticLineChart:
     
     def on_hover(self, event):
         """Handle mouse hover event"""
-        if event.inaxes == self.ax and hasattr(self, 'hover_annotation'):
-            try:
-                self.hover_annotation.remove()
-            except:
-                pass
+        if event.inaxes == self.ax:
+            self.tooltip.place_forget()
             
-            # Create hover annotation
-            self.hover_annotation = self.ax.annotate(
-                f"Value: {event.ydata:.2f}", 
-                xy=(event.xdata, event.ydata),
-                xytext=(10, 10), textcoords='offset points',
-                bbox=dict(boxstyle="round,pad=0.3", fc="#152238", alpha=0.8,
-                         ec=self.grid_color, lw=1),
-                color=self.font_color, fontsize=8
-            )
-            self.canvas.draw_idle()
+            # Get position for tooltip
+            bbox = self.ax.get_window_extent()
+            x, y = event.x, event.y
+            
+            # Create tooltip text
+            text = f"Value: {event.ydata:.2f} at x={event.xdata:.1f}"
+            
+            # Show tooltip
+            self.tooltip.config(text=text)
+            self.tooltip.place(x=x+10, y=y+10)
     
     def on_leave(self, event):
         """Handle mouse leave event"""
-        if hasattr(self, 'hover_annotation') and self.hover_annotation:
-            try:
-                self.hover_annotation.remove()
-            except:
-                pass
-            self.canvas.draw_idle()
+        self.tooltip.place_forget()
     
     def pack(self, **kwargs):
         """Pack the chart widget"""
@@ -898,9 +945,8 @@ class FuturisticNetworkDashboard:
         self.header_frame.pack(fill=tk.X, padx=0, pady=0)
         
         # Add a subtle separator line under the header
-        separator = ttk.Frame(self.main_frame, height=1, style='TFrame')
+        separator = tk.Frame(self.main_frame, height=1, bg=self.colors['highlight'])
         separator.pack(fill=tk.X, padx=0, pady=0)
-        separator.configure(background=self.colors['highlight'])
         
         # Title with futuristic styling
         header_label = ttk.Label(self.header_frame, 
