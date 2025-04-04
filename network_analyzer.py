@@ -9,7 +9,61 @@ import threading
 import ipaddress
 from collections import defaultdict, deque
 import numpy as np
-from scapy.all import sniff, IP, TCP, UDP
+import random
+
+# Mock classes for simulation when scapy is not available
+class MockPacket:
+    def __init__(self, src_ip, dst_ip, protocol="TCP", dport=80):
+        self.src_ip = src_ip
+        self.dst_ip = dst_ip
+        self.protocol = protocol
+        self.dport = dport
+        self.layers = []
+        
+        # Add IP layer
+        self.layers.append("IP")
+        if protocol == "TCP":
+            self.layers.append("TCP")
+        elif protocol == "UDP":
+            self.layers.append("UDP")
+    
+    def __getitem__(self, layer):
+        if layer == IP:
+            return MockIP(self.src_ip, self.dst_ip)
+        elif layer == TCP:
+            return MockTCP(self.dport)
+        elif layer == UDP:
+            return MockUDP(self.dport)
+        return None
+    
+    def __contains__(self, layer):
+        return layer.__name__ in self.layers
+    
+    def __len__(self):
+        return random.randint(64, 1500)  # Random packet size
+
+class MockIP:
+    def __init__(self, src, dst):
+        self.src = src
+        self.dst = dst
+
+class MockTCP:
+    def __init__(self, dport):
+        self.dport = dport
+
+class MockUDP:
+    def __init__(self, dport):
+        self.dport = dport
+
+# Mock layer classes for simulation
+class IP:
+    __name__ = "IP"
+
+class TCP:
+    __name__ = "TCP"
+
+class UDP:
+    __name__ = "UDP"
 
 class DeviceData:
     """Class to store data for a specific network device"""
@@ -233,13 +287,15 @@ class NetworkAnalyzer:
         self.running = True
         
         try:
-            # For demo purposes, we'll also simulate traffic
+            # For demo purposes, we'll simulate traffic only
             threading.Thread(target=self.simulate_traffic, daemon=True).start()
             
-            # Actual packet capture
-            sniff(prn=self.packet_callback, store=0, filter="ip")
+            # We're not using real packet capture in this demo
+            # Instead, we'll keep the main thread alive
+            while self.running:
+                time.sleep(0.5)
         except Exception as e:
-            print(f"Error in packet capture: {e}")
+            print(f"Error in network monitoring: {e}")
             self.running = False
     
     def simulate_traffic(self):

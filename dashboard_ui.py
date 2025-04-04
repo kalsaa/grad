@@ -29,7 +29,7 @@ class DashboardUI:
         self.unauth_pie_chart = None
         self.bottom_chart = None
         
-        # Colors for the UI
+        # Colors for the UI - matched to the reference image
         self.colors = {
             'bg': '#1e1e1e',
             'header_bg': '#252526',
@@ -37,7 +37,7 @@ class DashboardUI:
             'highlight': '#0078d7',
             'chart_bg': '#252526',
             'authorized': '#4caf50',  # Green
-            'unauthorized': '#f44336',  # Red
+            'unauthorized': '#ff9800',  # Orange
             'device_colors': [
                 '#4caf50',  # Green
                 '#2196f3',  # Blue
@@ -158,11 +158,11 @@ class DashboardUI:
         auth_frame.rowconfigure(0, weight=1)
         auth_frame.rowconfigure(1, weight=1)
         
-        # Unauthorized access pie chart
+        # System Load gauge chart (top right)
         unauth_frame = ttk.Frame(auth_frame, style='TFrame')
         unauth_frame.grid(row=0, column=0, sticky="nsew", padx=5, pady=5)
         
-        unauth_label = ttk.Label(unauth_frame, text="System Usage", style='Header.TLabel')
+        unauth_label = ttk.Label(unauth_frame, text="System Load", style='Header.TLabel')
         unauth_label.pack(anchor=tk.NW, padx=5, pady=5)
         
         self.unauth_pie_chart = chart_components.GaugeChart(
@@ -170,13 +170,13 @@ class DashboardUI:
             title="System Load",
             max_value=100,
             bg_color=self.colors['chart_bg'],
-            color=self.colors['unauthorized'],
+            color=self.colors['authorized'],  # Green for system load
             width=250,
             height=150
         )
         self.unauth_pie_chart.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
-        # Authorized access pie chart
+        # CPU Usage gauge chart (bottom right)
         auth_frame = ttk.Frame(auth_frame, style='TFrame')
         auth_frame.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
         
@@ -203,7 +203,7 @@ class DashboardUI:
         title_label = ttk.Label(memory_frame, text="Memory Usage", style='Header.TLabel')
         title_label.pack(anchor=tk.NW, padx=5, pady=5)
         
-        # Create chart
+        # Create chart - bar chart showing horizontal bars for each device's memory usage
         self.memory_chart = chart_components.BarChart(
             memory_frame,
             self.colors,

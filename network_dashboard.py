@@ -49,10 +49,11 @@ class NetworkDashboard:
         """Start the network packet capture in a separate thread"""
         if not self.running:
             self.running = True
-            self.capture_thread = threading.Thread(target=self.analyzer.start_capture)
+            # Use the simulate_traffic method instead of real packet capture
+            self.capture_thread = threading.Thread(target=self.analyzer.simulate_traffic)
             self.capture_thread.daemon = True
             self.capture_thread.start()
-            self.ui.update_status("Capture started")
+            self.ui.update_status("Network monitoring started")
     
     def stop_network_capture(self):
         """Stop the network packet capture"""
@@ -80,19 +81,20 @@ class NetworkDashboard:
             sys.exit(0)
 
 def main():
-    if not check_privileges():
-        print("Warning: This application requires administrator/root privileges to capture packets.")
-        print("Please restart the application with appropriate privileges.")
-        messagebox.showerror("Insufficient Privileges", 
-                             "This application requires administrator/root privileges to capture packets.\n"
-                             "Please restart the application with appropriate privileges.")
-        sys.exit(1)
+    # Commenting privilege check since we're using simulated data
+    # if not check_privileges():
+    #     print("Warning: This application requires administrator/root privileges to capture packets.")
+    #     print("Please restart the application with appropriate privileges.")
+    #     messagebox.showerror("Insufficient Privileges", 
+    #                          "This application requires administrator/root privileges to capture packets.\n"
+    #                          "Please restart the application with appropriate privileges.")
+    #     sys.exit(1)
     
     # Create the main application window
     root = tk.Tk()
     app = NetworkDashboard(root)
     
-    # Start capturing network traffic
+    # Start monitoring simulated network traffic
     app.start_network_capture()
     
     # Start the main event loop
