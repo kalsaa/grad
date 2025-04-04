@@ -423,8 +423,8 @@ class FuturisticLineChart:
         # X-axis format as time
         self.ax.xaxis.set_major_locator(MaxNLocator(5))
         
-        # Y-axis range with more headroom
-        self.ax.set_ylim(0, 60)  # Increased to 60 to avoid cutting off traffic spikes
+        # Y-axis range with unlimited headroom - will auto-scale based on data
+        self.ax.set_ylim(0, 100)  # Initial limit, but will auto-adjust based on data
         
         # Labels
         self.ax.set_xlabel('Time', color=self.font_color, fontsize=9, alpha=0.9)
@@ -507,6 +507,14 @@ class FuturisticLineChart:
         
         # Get the x values for plotting
         x = np.arange(len(smooth_data[0])) if smooth_data else []
+        
+        # Calculate maximum y-value to adjust the scale to show all spikes
+        if smooth_data:
+            all_values = [item for sublist in smooth_data for item in sublist]
+            if all_values:
+                max_value = max(all_values) * 1.2  # Add 20% headroom
+                if max_value > 100:  # If we need more than the initial limit
+                    self.ax.set_ylim(0, max_value)
         
         # Plot each data series with smooth curves like in the reference image
         for i, values in enumerate(smooth_data):
@@ -1094,14 +1102,14 @@ class NetworkData:
             is_authorized = True
             
             if random.random() < 0.15:  # 15% chance of unauthorized access
-                # Create a traffic spike (unauthorized access) - increased from 3x to 5x for better visibility
-                base_traffic *= 5
+                # Create a large traffic spike (unauthorized access) - increased for better visibility and testing auto-scaling
+                base_traffic *= random.choice([8, 12, 15, 20])  # Much bigger spikes to test auto-scaling
                 is_authorized = False
                 unauth_count += 1
             else:
                 # Occasionally create authorized traffic spikes too
                 if random.random() < 0.05:  # 5% chance of authorized spike
-                    base_traffic *= 2.5
+                    base_traffic *= random.choice([3, 5, 7])  # Bigger authorized spikes
                 auth_count += 1
             
             # Store device traffic
@@ -1421,8 +1429,8 @@ class FuturisticNetworkDashboard:
         title_frame = ttk.Frame(network_frame, style='TFrame')
         title_frame.pack(fill=tk.X, anchor=tk.NW, padx=5, pady=5)
         
-        # Title with icon
-        title_label = ttk.Label(title_frame, text="≡ NETWORK TRAFFIC", style='Title.TLabel')
+        # Title with Wireshark logo (represented by 🦈 shark)
+        title_label = ttk.Label(title_frame, text="🦈 NETWORK TRAFFIC", style='Title.TLabel')
         title_label.pack(side=tk.LEFT)
         
         # Info label for hover stats (initially empty)
@@ -1452,6 +1460,9 @@ class FuturisticNetworkDashboard:
         # Bind hover events to the chart canvas to pause traffic
         self.network_chart.canvas.get_tk_widget().bind("<Enter>", self._on_network_hover)
         self.network_chart.canvas.get_tk_widget().bind("<Leave>", self._on_network_leave)
+        
+        # Bind click events to select devices
+        self.network_chart.canvas.mpl_connect('button_press_event', self.network_chart.on_click)
     
     def _create_system_load_chart(self):
         """Create the FPGA Load chart"""
@@ -1485,8 +1496,8 @@ class FuturisticNetworkDashboard:
         title_frame = ttk.Frame(auth_frame, style='TFrame')
         title_frame.pack(fill=tk.X, anchor=tk.NW, padx=5, pady=5)
         
-        # Title with icon - replace check mark with a shield icon
-        title_label = ttk.Label(title_frame, text="🛡️ NETWORK ACCESS MONITOR", style='Title.TLabel')
+        # Better icon for Network Access Monitor
+        title_label = ttk.Label(title_frame, text="🔍 NETWORK ACCESS MONITOR", style='Title.TLabel')
         title_label.pack(side=tk.LEFT)
         
         # Info label for hover stats (initially empty)
