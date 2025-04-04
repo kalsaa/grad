@@ -403,9 +403,13 @@ class FuturisticLineChart:
         # Connect events
         self.canvas.mpl_connect('motion_notify_event', self.on_hover)
         self.canvas.mpl_connect('figure_leave_event', self.on_leave)
+        self.canvas.mpl_connect('button_press_event', self.on_click)
         
         # Initial plot setup
         self._setup_plot()
+        
+        # Store selected device index
+        self.selected_device_idx = None
         
         # Pack the canvas
         self.canvas_widget.pack(fill=tk.BOTH, expand=True)
