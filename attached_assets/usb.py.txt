@@ -1,0 +1,159 @@
+import serial
+import logging
+import os
+import time
+from datetime import datetime
+
+DEVICE_INFO = {
+    0: {"name": "Laptop 1", "ip": "192.168.1.101"},
+    1: {"name": "Laptop 2", "ip": "192.168.1.102"},
+    2: {"name": "Laptop 3", "ip": "192.168.1.103"},
+    3: {"name": "Laptop 4", "ip": "192.168.1.104"},
+    4: {"name": "Laptop 5", "ip": "192.168.1.105"},
+    5: {"name": "Laptop 6", "ip": "192.168.1.106"},
+    6: {"name": "Laptop 7", "ip": "192.168.1.107"}
+}
+
+
+USB_PORT = 'COM1'
+BAUD_RATE = 115200
+
+
+AUTHORIZED_LOG = 'authorized.log'
+UNAUTHORIZED_LOG = 'unauthorized.log'
+ALL_TRAFFIC_LOG = 'all_traffic.log'
+
+
+class BaseLogger:
+    def __init__(self, log_file, log_name):
+        self.log_file = log_file
+        self.log_name = log_name
+        self.logger = None
+        self.file_obj = None
+        self._setup_logger()
+
+    def _setup_logger(self):
+
+        os.makedirs(os.path.dirname(self.log_file) or '.', exist_ok=True)  # Ensure log directory exists
+        self.logger = logging.getLogger(self.log_name)
+        self.logger.setLevel(logging.INFO)
+
+        if self.logger.handlers:
+            self.logger.handlers.clear()
+
+        self.file_obj = open(self.log_file, 'a', buffering=1, encoding='utf-8')
+        handler = logging.StreamHandler(self.file_obj)
+        formatter = logging.Formatter('%(asctime)s - %(message)s')
+        handler.setFormatter(formatter)
+        self.logger.addHandler(handler)
+
+    def log(self, message):
+        self.logger.info(message)
+
+    def close(self):
+        if self.file_obj:
+            self.file_obj.close()
+
+class AuthorizedLogger(BaseLogger):
+    def __init__(self):
+        super().__init__(AUTHORIZED_LOG, 'authorized_access')
+
+    def log_authorized_access(self, src_info, dest_info):
+        log_message = f"AUTHORIZED: {src_info['name']} (IP:{src_info['ip']}) → {dest_info['name']} (IP:{dest_info['ip']})"
+        self.log(log_message)
+        return log_message
+
+class UnauthorizedLogger(BaseLogger):
+    """Logger specialized for unauthorized traffic"""
+    def __init__(self):
+        super().__init__(UNAUTHORIZED_LOG, 'unauthorized_access')
+
+    def log_unauthorized_access(self, src_info, dest_info):
+        log_message = f"UNAUTHORIZED: {src_info['name']} (IP:{src_info['ip']}) attempted to access {dest_info['name']} (IP:{dest_info['ip']})"
+        self.log(log_message)
+        return log_message
+
+class AllTrafficLogger(BaseLogger):
+
+    def __init__(self):
+        super().__init__(ALL_TRAFFIC_LOG, 'all_traffic')
+
+    def log_traffic(self, message):
+        self.log(message)
+
+
+def parse_packet(packet_byte):
+
+    dest_ip = (packet_byte >> 5) & 0x07
+    src_ip = (packet_byte >> 2) & 0x07
+    auth = packet_byte & 0x03
+
+
+    if dest_ip not in DEVICE_INFO:
+        return None, None, None, False, f"Invalid destination index {dest_ip}"
+    if src_ip not in DEVICE_INFO:
+        return None, None, None, False, f"Invalid source index {src_ip}"
+    if auth not in [0, 3]:
+        return None, None, None, False, f"Invalid auth value {auth}"
+
+    return dest_ip, src_ip, auth, True, None
+
+def get_device_info(device_index):
+    return DEVICE_INFO.get(device_index, {"name": f"Unknown Device ({device_index})", "ip": "Unknown IP"})
+
+def main():
+
+    auth_logger = AuthorizedLogger()
+    unauth_logger = UnauthorizedLogger()
+    all_traffic_logger = AllTrafficLogger()
+
+
+    print("f Land Traffic Monitor...")
+    print(f"Logs will be written to:")
+    print(f"  - Authorized traffic: {AUTHORIZED_LOG}")
+    print(f"  - Unauthorized traffic: {UNAUTHORIZED_LOG}")
+    print(f"  - All traffic: {ALL_TRAFFIC_LOG}")
+
+
+    print("\nDevice mappings:")
+    for idx, info in DEVICE_INFO.items():
+        print(f"  Device {idx}: {info['name']} - IP: {info['ip']}")
+
+    try:
+        with serial.Serial(USB_PORT, BAUD_RATE, timeout=1) as ser:
+            print(f"\nConnected to FPGA on {USB_PORT} at {BAUD_RATE} baud")
+            while True:
+                packet = ser.read(1)
+                if packet:
+                    packet_byte = ord(packet)
+                    dest_idx, src_idx, auth, is_valid, error_message = parse_packet(packet_byte)
+
+                    # Process valid packet
+                    src_info = get_device_info(src_idx)
+                    dest_info = get_device_info(dest_idx)
+
+                    # Log based on authorization
+                    if auth == 0:
+                        log_message = auth_logger.log_authorized_access(src_info, dest_info)
+                    elif auth == 3:
+                        log_message = unauth_logger.log_unauthorized_access(src_info, dest_info)
+
+                    all_traffic_logger.log_traffic(log_message)
+                    print(log_message)
+
+    except serial.SerialException as e:
+        print(f"Error with serial connection: {e}")
+        print(f"Please check FPGA connection and port {USB_PORT}.")
+    except KeyboardInterrupt:
+        print("\nMonitoring stopped by user")
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+    finally:
+        print("Closing connection and log files")
+        auth_logger.close()
+        unauth_logger.close()
+        all_traffic_logger.close()
+
+
+if __name__ == "__main__":
+    main()

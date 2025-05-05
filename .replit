@@ -6,7 +6,7 @@ channel = "stable-24_05"
 packages = ["cairo", "ffmpeg-full", "freetype", "ghostscript", "gobject-introspection", "gtk3", "imagemagickBig", "pkg-config", "qhull", "sox", "tcl", "tcpdump", "tk", "wireshark"]
 
 [workflows]
-runButton = "NetworkMonitoring"
+runButton = "NetworkDashboardNew"
 
 [[workflows.workflow]]
 name = "Project"
@@ -69,6 +69,15 @@ args = "python futuristic_network_dashboard.py"
 
 [[workflows.workflow]]
 name = "NetworkMonitoring"
+author = 41161311
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python futuristic_network_dashboard.py"
+
+[[workflows.workflow]]
+name = "NetworkDashboardNew"
 author = 41161311
 mode = "sequential"
 
