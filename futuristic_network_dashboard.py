@@ -19,15 +19,16 @@ import serial
 USB_PORT = 'COM1'  # Change this according to your setup
 BAUD_RATE = 115200
 
-# Device mapping
+# Device mapping - Using 3-bit addresses (0-7)
 DEVICE_INFO = {
-    0: {"name": "Laptop 1", "ip": "192.168.1.101"},
-    1: {"name": "Laptop 2", "ip": "192.168.1.102"},
-    2: {"name": "Laptop 3", "ip": "192.168.1.103"},
-    3: {"name": "Laptop 4", "ip": "192.168.1.104"},
-    4: {"name": "Laptop 5", "ip": "192.168.1.105"},
-    5: {"name": "Laptop 6", "ip": "192.168.1.106"},
-    6: {"name": "Laptop 7", "ip": "192.168.1.107"}
+    0: {"name": "Device 0", "ip": "000"},  # IP: 000
+    1: {"name": "Device 1", "ip": "001"},  # IP: 001
+    2: {"name": "Device 2", "ip": "010"},  # IP: 010
+    3: {"name": "Device 3", "ip": "011"},  # IP: 011
+    4: {"name": "Device 4", "ip": "100"},  # IP: 100
+    5: {"name": "Device 5", "ip": "101"},  # IP: 101
+    6: {"name": "Device 6", "ip": "110"},  # IP: 110
+    7: {"name": "Device 7", "ip": "111"}   # IP: 111
 }
 
 class UARTHandler:
@@ -1056,10 +1057,10 @@ class NetworkData:
         if not self.uart.connect():
             print("Failed to connect to UART. Please check connection.")
             
-        # Device data
+        # Device data using 3-bit binary addresses
         self.devices = [
-            {"name": info["name"], "ip": info["ip"], "traffic": [], "connections": []}
-            for _, info in DEVICE_INFO.items()
+            {"name": f"Device {i}", "ip": format(i, '03b'), "traffic": [], "connections": []}
+            for i in range(8)  # 3 bits = 8 possible addresses (0-7)
         ]
         
         # Current metrics
