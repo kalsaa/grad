@@ -12,6 +12,75 @@ import random
 import math
 from collections import defaultdict, deque
 import numpy as np
+
+import serial
+
+# UART Configuration
+USB_PORT = 'COM1'  # Change this according to your setup
+BAUD_RATE = 115200
+
+# Device mapping
+DEVICE_INFO = {
+    0: {"name": "Laptop 1", "ip": "192.168.1.101"},
+    1: {"name": "Laptop 2", "ip": "192.168.1.102"},
+    2: {"name": "Laptop 3", "ip": "192.168.1.103"},
+    3: {"name": "Laptop 4", "ip": "192.168.1.104"},
+    4: {"name": "Laptop 5", "ip": "192.168.1.105"},
+    5: {"name": "Laptop 6", "ip": "192.168.1.106"},
+    6: {"name": "Laptop 7", "ip": "192.168.1.107"}
+}
+
+class UARTHandler:
+    def __init__(self, port=USB_PORT, baud_rate=BAUD_RATE):
+        self.port = port
+        self.baud_rate = baud_rate
+        self.serial = None
+        
+    def connect(self):
+        try:
+            self.serial = serial.Serial(self.port, self.baud_rate, timeout=1)
+            print(f"Connected to FPGA on {self.port} at {self.baud_rate} baud")
+            return True
+        except serial.SerialException as e:
+            print(f"Error connecting to serial port: {e}")
+            return False
+            
+    def read_packet(self):
+        if not self.serial:
+            return None
+            
+        try:
+            packet = self.serial.read(1)
+            if packet:
+                packet_byte = ord(packet)
+                return self.parse_packet(packet_byte)
+        except serial.SerialException as e:
+            print(f"Error reading from serial port: {e}")
+        return None
+            
+    def parse_packet(self, packet_byte):
+        dest_ip = (packet_byte >> 5) & 0x07
+        src_ip = (packet_byte >> 2) & 0x07
+        auth = packet_byte & 0x03
+        
+        if dest_ip not in DEVICE_INFO or src_ip not in DEVICE_INFO:
+            return None
+            
+        src_info = DEVICE_INFO[src_ip]
+        dest_info = DEVICE_INFO[dest_ip]
+        is_authorized = (auth == 0)
+        
+        return {
+            'source': src_info,
+            'destination': dest_info,
+            'authorized': is_authorized,
+            'timestamp': time.time()
+        }
+        
+    def close(self):
+        if self.serial:
+            self.serial.close()
+
 import matplotlib
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -942,13 +1011,24 @@ class FuturisticGaugeChart:
 
 
 class NetworkData:
-    """Class for simulating network device data"""
+    """Class for handling real network data via UART"""
     def __init__(self):
         # Data storage
         self.network_traffic = []
         self.system_load = []
         self.auth_status = []  # List to track authorized/unauthorized access counts
         self.timestamps = []
+        
+        # Initialize UART handler
+        self.uart = UARTHandler()
+        if not self.uart.connect():
+            print("Failed to connect to UART. Please check connection.")
+            
+        # Device data
+        self.devices = [
+            {"name": info["name"], "ip": info["ip"], "traffic": [], "connections": []}
+            for _, info in DEVICE_INFO.items()
+        ]
         
         # Current metrics
         self.current_network = 25.0
@@ -1151,10 +1231,11 @@ class NetworkData:
         self._update_connection_details()
     
     def update(self):
-        """Generate a new data point and return current metrics"""
-        # Only generate new data if not paused
+        """Get new data point from UART and return current metrics"""
         if not self.paused:
-            self._generate_next_data_point()
+            packet = self.uart.read_packet()
+            if packet:
+                self._process_packet(packet)
         
         # Extract latest network traffic for each device
         network_values = []
