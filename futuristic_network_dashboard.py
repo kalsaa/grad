@@ -53,13 +53,23 @@ class UARTHandler:
             
     def read_packet(self):
         if self.simulation:
-            # Generate random 8-bit packet
+            # Generate random 8-bit packet with more variability
             # First 2 bits: 00 (authorized) or 11 (unauthorized)
-            auth = 0 if random.random() < 0.8 else 3  # 80% authorized
-            # Next 3 bits: source device (0-6)
-            src = random.randint(0, 6)
-            # Last 3 bits: destination device (0-6)
-            dst = random.randint(0, 6)
+            auth_chance = random.random()
+            auth = 0 if auth_chance < 0.5 else 3  # 50/50 chance
+            
+            # Next 3 bits: source device (0-7)
+            src = random.randint(0, 7)
+            
+            # Last 3 bits: destination device (0-7), different from source
+            while True:
+                dst = random.randint(0, 7)
+                if dst != src:  # Ensure different source and destination
+                    break
+                    
+            # Add random delay to simulate network latency
+            time.sleep(random.uniform(0.1, 0.5))
+            
             # Combine into 8-bit packet
             packet_byte = (auth << 6) | (src << 3) | dst
             return self.parse_packet(packet_byte)
