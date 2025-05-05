@@ -31,12 +31,17 @@ DEVICE_INFO = {
 }
 
 class UARTHandler:
-    def __init__(self, port=USB_PORT, baud_rate=BAUD_RATE):
+    def __init__(self, port=USB_PORT, baud_rate=BAUD_RATE, simulation=True):
         self.port = port
         self.baud_rate = baud_rate
         self.serial = None
+        self.simulation = simulation
         
     def connect(self):
+        if self.simulation:
+            print("Running in simulation mode")
+            return True
+            
         try:
             self.serial = serial.Serial(self.port, self.baud_rate, timeout=1)
             print(f"Connected to FPGA on {self.port} at {self.baud_rate} baud")
@@ -46,6 +51,18 @@ class UARTHandler:
             return False
             
     def read_packet(self):
+        if self.simulation:
+            # Generate random 8-bit packet
+            # First 2 bits: 00 (authorized) or 11 (unauthorized)
+            auth = 0 if random.random() < 0.8 else 3  # 80% authorized
+            # Next 3 bits: source device (0-6)
+            src = random.randint(0, 6)
+            # Last 3 bits: destination device (0-6)
+            dst = random.randint(0, 6)
+            # Combine into 8-bit packet
+            packet_byte = (auth << 6) | (src << 3) | dst
+            return self.parse_packet(packet_byte)
+            
         if not self.serial:
             return None
             
