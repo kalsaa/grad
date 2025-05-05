@@ -1546,9 +1546,6 @@ class FuturisticNetworkDashboard:
         # Network Traffic chart (top left)
         self._create_network_chart()
 
-        # Memory Usage chart (middle left)
-        self._create_memory_usage_chart()
-
         # Network Access Monitor chart (middle left & center)
         self._create_auth_chart()
 
@@ -1605,28 +1602,7 @@ class FuturisticNetworkDashboard:
         # Bind click events to select devices
         self.network_chart.canvas.mpl_connect('button_press_event', self.network_chart.on_click)
 
-    def _create_memory_usage_chart(self):
-        """Create the Memory Usage chart"""
-        memory_frame = ttk.Frame(self.charts_frame, style='TFrame')
-        memory_frame.grid(row=1, column=0, sticky="nsew", padx=8, pady=8)
-
-        # Title
-        title_label = ttk.Label(memory_frame, text="MEMORY USAGE", style='Title.TLabel')
-        title_label.pack(anchor=tk.NW, padx=5, pady=5)
-
-        # Create chart
-        self.memory_usage_chart = FuturisticLineChart(
-            memory_frame,
-            "Memory Usage",
-            ["Memory Usage"],
-            [self.colors['blue']],
-            bg_color=self.colors['chart_bg'],
-            grid_color=self.colors['grid'],
-            width=350,
-            height=200,
-            font_color=self.colors['text']
-        )
-        self.memory_usage_chart.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+    
 
     def _create_auth_chart(self):
         """Create the Network Access Monitor chart"""
