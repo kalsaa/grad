@@ -80,26 +80,20 @@ class UARTHandler:
         # Extract auth bits (first 2 bits)
         auth_bits = (packet_byte >> 6) & 0x03
         # Extract source IP (next 3 bits)
+        # Extract source IP (bits 3-5) and destination IP (bits 0-2)
         src_ip = (packet_byte >> 3) & 0x07
-        # Extract destination IP (last 3 bits)
         dest_ip = packet_byte & 0x07
 
-        # Translate hex IP to binary format for display
-        def hex_to_ip(hex_str):
-            try:
-                # Remove '0x' if present and pad to 8 characters
-                hex_str = hex_str.replace('0x', '').zfill(8)
-                # Convert each byte to decimal
-                bytes = [int(hex_str[i:i+2], 16) for i in range(0, 8, 2)]
-                return '.'.join(str(b) for b in bytes)
-            except Exception:
-                return hex_str
+        # Convert IPs to binary string format (3 bits each)
+        src_ip_bin = format(src_ip, '03b')
+        dest_ip_bin = format(dest_ip, '03b')
 
-        # Translate source and destination IPs if they're in hex format
-        if isinstance(src_ip, str) and 'c0a8' in src_ip.lower():
-            src_ip = hex_to_ip(src_ip)
-        if isinstance(dest_ip, str) and 'c0a8' in dest_ip.lower():
-            dest_ip = hex_to_ip(dest_ip)
+        # Get device info using binary IPs
+        src_info = DEVICE_INFO[src_ip]
+        src_info['ip'] = src_ip_bin  # Update with binary format
+        
+        dest_info = DEVICE_INFO[dest_ip]
+        dest_info['ip'] = dest_ip_bin  # Update with binary format
         
         if dest_ip not in DEVICE_INFO or src_ip not in DEVICE_INFO:
             return None
