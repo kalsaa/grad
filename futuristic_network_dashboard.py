@@ -1047,6 +1047,10 @@ class NetworkData:
         self.auth_status = []  # List to track authorized/unauthorized access counts
         self.timestamps = []
         
+        # Initialize counters
+        self.total_authorized = 0
+        self.total_unauthorized = 0
+        
         # Initialize UART handler
         self.uart = UARTHandler()
         if not self.uart.connect():
