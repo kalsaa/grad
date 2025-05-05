@@ -728,8 +728,20 @@ class FuturisticLineChart:
             # If we have connection details and we're hovering near a line
             if self.connection_details and closest_line_idx is not None and closest_line_idx < len(self.connection_details):
                 device_connections = self.connection_details[closest_line_idx]
-                if device_connections and len(device_connections) > 0:                    device_name = self.device_names[closest_line_idx] if self.device_names else f"Device {closest_line_idx+1}"
-                    device_ip = self.device_ips[closest_line_idx] if self.device_ips else "Unknown IP"
+                if device_connections and len(device_connections) > 0:
+                    device_name = self.device_names[closest_line_idx] if self.device_names else f"Device {closest_line_idx+1}"
+                    # Convert hex IP to decimal format
+                    hex_ip = self.device_ips[closest_line_idx] if self.device_ips else "Unknown IP"
+                    if hex_ip.startswith('c0a8'):  # Check if it's a hex IP
+                        try:
+                            # Convert hex to decimal IP format
+                            ip_hex = hex_ip
+                            ip_parts = [str(int(ip_hex[i:i+2], 16)) for i in range(0, len(ip_hex), 2)]
+                            device_ip = '.'.join(ip_parts)
+                        except:
+                            device_ip = hex_ip
+                    else:
+                        device_ip = hex_ip
 
                     # Create detailed tooltip with connection information
                     text = f"{device_name} ({device_ip}) - PAUSED\n"
