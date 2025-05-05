@@ -10,8 +10,11 @@ import time
 import threading
 import random
 import math
+import os
 from collections import defaultdict, deque
 import numpy as np
+import csv
+from datetime import datetime
 
 import serial
 
@@ -725,8 +728,7 @@ class FuturisticLineChart:
             # If we have connection details and we're hovering near a line
             if self.connection_details and closest_line_idx is not None and closest_line_idx < len(self.connection_details):
                 device_connections = self.connection_details[closest_line_idx]
-                if device_connections and len(device_connections) > 0:
-                    device_name = self.device_names[closest_line_idx] if self.device_names else f"Device {closest_line_idx+1}"
+                if device_connections and len(device_connections) > 0:                    device_name = self.device_names[closest_line_idx] if self.device_names else f"Device {closest_line_idx+1}"
                     device_ip = self.device_ips[closest_line_idx] if self.device_ips else "Unknown IP"
 
                     # Create detailed tooltip with connection information
@@ -1421,6 +1423,9 @@ class FuturisticNetworkDashboard:
         # Start the update loop
         self.update_ui()
 
+        # Initialize auto-save
+        self._export_data()
+
     def _setup_styles(self):
         """Set up custom styles for UI components"""
         self.style.configure('TFrame', background=self.colors['bg'])
@@ -1602,7 +1607,7 @@ class FuturisticNetworkDashboard:
         # Bind click events to select devices
         self.network_chart.canvas.mpl_connect('button_press_event', self.network_chart.on_click)
 
-    
+
 
     def _create_auth_chart(self):
         """Create the Network Access Monitor chart"""
@@ -2037,6 +2042,33 @@ class FuturisticNetworkDashboard:
         """Handle application closing"""
         self.running = False
         self.root.destroy()
+
+    def _export_data(self):
+        """Export network data to a CSV file"""
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        filepath = os.path.join(current_dir, f"network_data_{timestamp}.csv")
+
+        try:
+            with open(filepath, 'w', newline='', encoding='utf-8') as csvfile:
+                fieldnames = ['Timestamp', 'Source IP', 'Destination IP', 'Authorized', 'Traffic Value']
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                writer.writeheader()
+                for device in self.node_data.devices:
+                    for conn in device["connections"]:
+                        writer.writerow({
+                            'Timestamp': time.strftime("%Y-%m-%d %H:%M:%S"),
+                            'Source IP': conn['source'],
+                            'Destination IP': conn['destination'],
+                            'Authorized': 'Yes' if conn['authorized'] else 'No',
+                            'Traffic Value': conn['bytes_sent'] + conn['bytes_received']
+                        })
+            print(f"Data exported successfully to {filepath}")
+
+            # Auto-save every 12 hours
+            self.root.after(43200000, self._export_data)  # 12 hours in milliseconds
+        except Exception as e:
+            print(f"Error exporting data: {e}")
 
 
 def main():
