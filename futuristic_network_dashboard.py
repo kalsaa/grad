@@ -1263,7 +1263,16 @@ class NetworkData:
         if not self.paused:
             packet = self.uart.read_packet()
             if packet:
-                self._process_packet(packet)
+                # Process the packet directly here since it's already parsed by UART handler
+                src_info = packet['source']
+                dest_info = packet['destination']
+                is_authorized = packet['authorized']
+                
+                # Update stats
+                if is_authorized:
+                    self.total_authorized += 1
+                else:
+                    self.total_unauthorized += 1
         
         # Extract latest network traffic for each device
         network_values = []
