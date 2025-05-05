@@ -59,17 +59,28 @@ class UARTHandler:
         return None
             
     def parse_packet(self, packet_byte):
-        dest_ip = (packet_byte >> 5) & 0x07
-        src_ip = (packet_byte >> 2) & 0x07
-        auth = packet_byte & 0x03
+        # Extract auth bits (first 2 bits)
+        auth_bits = (packet_byte >> 6) & 0x03
+        # Extract source IP (next 3 bits)
+        src_ip = (packet_byte >> 3) & 0x07
+        # Extract destination IP (last 3 bits)
+        dest_ip = packet_byte & 0x07
         
         if dest_ip not in DEVICE_INFO or src_ip not in DEVICE_INFO:
             return None
             
         src_info = DEVICE_INFO[src_ip]
         dest_info = DEVICE_INFO[dest_ip]
-        is_authorized = (auth == 0)
         
+        # Check authorization (00 = authorized, 11 = unauthorized)
+        is_authorized = (auth_bits == 0)
+        # Unauthorized if auth bits are 11 (3 in decimal)
+        is_unauthorized = (auth_bits == 3)
+        
+        # Only process if it's either authorized or unauthorized
+        if not (is_authorized or is_unauthorized):
+            return None
+            
         return {
             'source': src_info,
             'destination': dest_info,
