@@ -349,10 +349,10 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "kamene", specifier = ">=0.32" },
-    { name = "matplotlib", specifier = ">=3.10.1" },
-    { name = "numpy", specifier = ">=2.2.4" },
-    { name = "scapy", specifier = ">=2.6.1" },
+    { name = "kamene", specifier = "==0.32" },
+    { name = "matplotlib", specifier = "==3.10.1" },
+    { name = "numpy", specifier = "==2.2.4" },
+    { name = "scapy", specifier = "==2.6.1" },
 ]
 
 [[package]]

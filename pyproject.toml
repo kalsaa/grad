@@ -4,8 +4,8 @@ version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.11"
 dependencies = [
-    "kamene>=0.32",
-    "matplotlib>=3.10.1",
-    "numpy>=2.2.4",
-    "scapy>=2.6.1",
+    "kamene==0.32",
+    "matplotlib==3.10.1",
+    "numpy==2.2.4",
+    "scapy==2.6.1",
 ]
