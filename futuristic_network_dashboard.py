@@ -16,9 +16,123 @@ import numpy as np
 import csv
 from datetime import datetime
 
+import serial
 
+# UART Configuration
+USB_PORT = 'COM1'  # Change this according to your setup
+BAUD_RATE = 115200
 
+# Device mapping - Using 3-bit addresses (0-7)
+DEVICE_INFO = {
+    0: {"name": "Device 0", "ip": "000"},  # IP: 000
+    1: {"name": "Device 1", "ip": "001"},  # IP: 001
+    2: {"name": "Device 2", "ip": "010"},  # IP: 010
+    3: {"name": "Device 3", "ip": "011"},  # IP: 011
+    4: {"name": "Device 4", "ip": "100"},  # IP: 100
+    5: {"name": "Device 5", "ip": "101"},  # IP: 101
+    6: {"name": "Device 6", "ip": "110"},  # IP: 110
+    7: {"name": "Device 7", "ip": "111"}   # IP: 111
+}
 
+class UARTHandler:
+    def __init__(self, port=USB_PORT, baud_rate=BAUD_RATE, simulation=True):
+        self.port = port
+        self.baud_rate = baud_rate
+        self.serial = None
+        self.simulation = simulation
+
+    def connect(self):
+        if self.simulation:
+            print("Running in simulation mode")
+            return True
+
+        try:
+            self.serial = serial.Serial(self.port, self.baud_rate, timeout=1)
+            print(f"Connected to FPGA on {self.port} at {self.baud_rate} baud")
+            return True
+        except serial.SerialException as e:
+            print(f"Error connecting to serial port: {e}")
+            return False
+
+    def read_packet(self):
+        if self.simulation:
+            # Generate random 8-bit packet with more variability
+            # First 2 bits: 00 (authorized) or 11 (unauthorized)
+            auth_chance = random.random()
+            auth = 0 if auth_chance < 0.5 else 3  # 50/50 chance
+
+            # Next 3 bits: source device (0-7)
+            src = random.randint(0, 7)
+
+            # Last 3 bits: destination device (0-7), different from source
+            while True:
+                dst = random.randint(0, 7)
+                if dst != src:  # Ensure different source and destination
+                    break
+
+            # Add random delay to simulate network latency
+            time.sleep(random.uniform(0.1, 0.5))
+
+            # Combine into 8-bit packet
+            packet_byte = (auth << 6) | (src << 3) | dst
+            return self.parse_packet(packet_byte)
+
+        if not self.serial:
+            return None
+
+        try:
+            packet = self.serial.read(1)
+            if packet:
+                packet_byte = ord(packet)
+                return self.parse_packet(packet_byte)
+        except serial.SerialException as e:
+            print(f"Error reading from serial port: {e}")
+        return None
+
+    def parse_packet(self, packet_byte):
+        # Extract auth bits (first 2 bits)
+        auth_bits = (packet_byte >> 6) & 0x03
+        # Extract source IP (next 3 bits)
+        # Extract source IP (bits 3-5) and destination IP (bits 0-2)
+        src_ip = (packet_byte >> 3) & 0x07
+        dest_ip = packet_byte & 0x07
+
+        # Convert IPs to binary string format (3 bits each)
+        src_ip_bin = format(src_ip, '03b')
+        dest_ip_bin = format(dest_ip, '03b')
+
+        # Get device info using binary IPs
+        src_info = DEVICE_INFO[src_ip]
+        src_info['ip'] = src_ip_bin  # Update with binary format
+
+        dest_info = DEVICE_INFO[dest_ip]
+        dest_info['ip'] = dest_ip_bin  # Update with binary format
+
+        if dest_ip not in DEVICE_INFO or src_ip not in DEVICE_INFO:
+            return None
+
+        src_info = DEVICE_INFO[src_ip]
+        dest_info = DEVICE_INFO[dest_ip]
+
+        # Check authorization (00 = authorized, 11 = unauthorized)
+        is_authorized = (auth_bits == 0)
+        # Unauthorized if auth bits are 11 (3 in decimal)
+        is_unauthorized = (auth_bits == 3)
+
+        # Only process if it's either authorized or unauthorized
+        if not (is_authorized or is_unauthorized):
+            return None
+
+        return {
+            'source': src_info,
+            'destination': dest_info,
+            'authorized': is_authorized,
+            'timestamp': time.time()
+        }
+
+    def close(self):
+        if self.serial:
+            self.serial.close()
 
 import matplotlib
 from matplotlib.figure import Figure
@@ -972,6 +1086,11 @@ class NetworkData:
         # Initialize counters
         self.total_authorized = 0
         self.total_unauthorized = 0
+
+        # Initialize UART handler
+        self.uart = UARTHandler()
+        if not self.uart.connect():
+            print("Failed to connect to UART. Please check connection.")
 
         # Device data using 3-bit binary addresses
         self.devices = [
