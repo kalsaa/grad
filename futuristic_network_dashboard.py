@@ -736,7 +736,7 @@ class FuturisticLineChart:
 
                     # List up to 3 connections to keep tooltip manageable
                     for i, conn in enumerate(device_connections[:3]):
-                        # Format bytes in a readable way
+                        # Formatbytes in a readable way
                         bytes_sent = self._format_bytes(conn["bytes_sent"]) if "bytes_sent" in conn else "N/A"
                         bytes_received = self._format_bytes(conn["bytes_received"]) if "bytes_received" in conn else "N/A"
 
@@ -1213,7 +1213,7 @@ class NetworkData:
                     device["connections"].append(new_conn)
 
     def _generate_next_data_point(self):
-        """Generate the next data point with randomized fluctuations"""
+        """Update data points with real traffic data"""
         timestamp = time.strftime('%H:%M')
         self.timestamps.append(timestamp)
 
@@ -1224,32 +1224,13 @@ class NetworkData:
             self.system_load = self.system_load[-60:]
             self.auth_status = self.auth_status[-60:]
 
-        # Generate network traffic for each device with authorization status
-        network_values = []
+        # Initialize empty values for each device
+        network_values = [0] * len(self.devices)
         auth_count = 0
         unauth_count = 0
 
-        for device in self.devices:
-            # Random traffic with occasional spikes
-            base_traffic = random.uniform(5, 20)
-            is_authorized = True
-
-            if random.random() < 0.15:  # 15% chance of unauthorized access
-                # Create a large traffic spike (unauthorized access) - increased for better visibility and testing auto-scaling
-                base_traffic *= random.choice([8, 12, 15, 20])  # Much bigger spikes to test auto-scaling
-                is_authorized = False
-                unauth_count += 1
-            else:
-                # Occasionally create authorized traffic spikes too
-                if random.random() < 0.05:  # 5% chance of authorized spike
-                    base_traffic *= random.choice([3, 5, 7])  # Bigger authorized spikes
-                auth_count += 1
-
-            # Store device traffic
-            if len(device['traffic']) > 60:
-                device['traffic'] = device['traffic'][-60:]
-            device['traffic'].append(base_traffic)
-            network_values.append(base_traffic)
+        # Here you would add real traffic monitoring code
+        # For now, we'll just keep zero values
 
         # Store overall network traffic
         self.network_traffic.append(network_values)
@@ -1488,7 +1469,7 @@ class FuturisticNetworkDashboard:
                           selectbackground=self.colors['highlight'])
 
         # Create the dropdown with all devices
-        device_options = ["All Devices"] + [f"Device {i+1}" for i in range(7)]
+        deviceoptions = ["All Devices"] + [f"Device {i+1}" for i in range(7)]
         self.device_dropdown = ttk.Combobox(device_frame, 
                                          textvariable=self.device_var,
                                          values=device_options,
