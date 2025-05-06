@@ -21,11 +21,19 @@ AUTH_CODE = "000"     # Authorized access code
 UNAUTH_CODE = "111"   # Unauthorized access code
 
 class FuturisticLineChart:
-    def __init__(self, port=USB_PORT, baud_rate=BAUD_RATE, simulation=True):
-        self.port = port
-        self.baud_rate = baud_rate
-        self.serial = None
-        self.simulation = simulation
+    def __init__(self, parent, title, labels, colors, bg_color='#080f1c', grid_color='#143062', 
+                 width=600, height=300, line_width=3.0, font_color='#e0f2ff', show_hover_values=False):
+        self.parent = parent
+        self.title = title
+        self.labels = labels
+        self.colors = colors
+        self.bg_color = bg_color
+        self.grid_color = grid_color
+        self.width = width
+        self.height = height
+        self.line_width = line_width
+        self.font_color = font_color
+        self.show_hover_values = show_hover_values  # Flag to control value boxes on hover
 
     def connect(self):
         if self.simulation:
