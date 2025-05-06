@@ -16,25 +16,11 @@ import numpy as np
 import csv
 from datetime import datetime
 
-import serial
+# Network binary codes
+AUTH_CODE = "000"     # Authorized access code
+UNAUTH_CODE = "111"   # Unauthorized access code
 
-# UART Configuration
-USB_PORT = 'COM1'  # Change this according to your setup
-BAUD_RATE = 115200
-
-# Device mapping - Using 3-bit addresses (0-7)
-DEVICE_INFO = {
-    0: {"name": "Device 0", "ip": "000"},  # IP: 000
-    1: {"name": "Device 1", "ip": "001"},  # IP: 001
-    2: {"name": "Device 2", "ip": "010"},  # IP: 010
-    3: {"name": "Device 3", "ip": "011"},  # IP: 011
-    4: {"name": "Device 4", "ip": "100"},  # IP: 100
-    5: {"name": "Device 5", "ip": "101"},  # IP: 101
-    6: {"name": "Device 6", "ip": "110"},  # IP: 110
-    7: {"name": "Device 7", "ip": "111"}   # IP: 111
-}
-
-class UARTHandler:
+class FuturisticLineChart:
     def __init__(self, port=USB_PORT, baud_rate=BAUD_RATE, simulation=True):
         self.port = port
         self.baud_rate = baud_rate
@@ -1075,7 +1061,7 @@ class FuturisticGaugeChart:
 
 
 class NetworkData:
-    """Class for handling real network data via UART"""
+    """Class for handling network data with binary auth logic"""
     def __init__(self):
         # Data storage
         self.network_traffic = []
@@ -1087,12 +1073,11 @@ class NetworkData:
         self.total_authorized = 0
         self.total_unauthorized = 0
 
-        # Initialize UART handler
-        self.uart = UARTHandler()
-        if not self.uart.connect():
-            print("Failed to connect to UART. Please check connection.")
+        # Binary auth codes (keep for later use)
+        self.AUTH_CODE = "000"    # Authorized code
+        self.UNAUTH_CODE = "111"  # Unauthorized code
 
-        # Device data using 3-bit binary addresses
+        # Device data
         self.devices = [
             {"name": f"Device {i}", "ip": format(i, '03b'), "traffic": [], "connections": []}
             for i in range(8)  # 3 bits = 8 possible addresses (0-7)
@@ -1299,20 +1284,10 @@ class NetworkData:
         self._update_connection_details()
 
     def update(self):
-        """Get new data point from UART and return current metrics"""
+        """Get new data point and return current metrics"""
         if not self.paused:
-            packet = self.uart.read_packet()
-            if packet:
-                # Process the packet directly here since it's already parsed by UART handler
-                src_info = packet['source']
-                dest_info = packet['destination']
-                is_authorized = packet['authorized']
-
-                # Update stats
-                if is_authorized:
-                    self.total_authorized += 1
-                else:
-                    self.total_unauthorized += 1
+            # Generate next data point instead of reading from UART
+            self._generate_next_data_point()
 
         # Extract latest network traffic for each device
         network_values = []
