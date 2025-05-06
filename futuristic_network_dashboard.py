@@ -1477,7 +1477,7 @@ class FuturisticNetworkDashboard:
                           selectbackground=self.colors['highlight'])
 
         # Create the dropdown with all devices
-        deviceoptions = ["All Devices"] + [f"Device {i+1}" for i in range(7)]
+        device_options = ["All Devices"] + [f"Device {i+1}" for i in range(7)]
         self.device_dropdown = ttk.Combobox(device_frame, 
                                          textvariable=self.device_var,
                                          values=device_options,
@@ -1769,8 +1769,8 @@ class FuturisticNetworkDashboard:
             self.unauth_chart.update_data([data['auth_counts'][1]], data['timestamp'])
             self.unauth_gauge.update_data(data['unauth_percent'])
 
-        # Schedule the next update
-        self.root.after(1000, self.update_ui)
+        # Schedule the next update (every 100ms for more real-time feel)
+        self.root.after(100, self.update_ui)
 
     def _on_device_selected(self, event):
         """Handle device selection from dropdown"""
