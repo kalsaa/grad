@@ -1110,13 +1110,13 @@ class NetworkData:
 
         # Device data for 7 devices
         self.devices = [
-            {"name": "Device 1", "ip": "192.168.1.100", "traffic": [], "connections": []},
-            {"name": "Device 2", "ip": "192.168.1.101", "traffic": [], "connections": []},
-            {"name": "Device 3", "ip": "192.168.1.102", "traffic": [], "connections": []},
-            {"name": "Device 4", "ip": "192.168.1.103", "traffic": [], "connections": []},
-            {"name": "Device 5", "ip": "192.168.1.104", "traffic": [], "connections": []},
-            {"name": "Device 6", "ip": "192.168.1.105", "traffic": [], "connections": []},
-            {"name": "Device 7", "ip": "192.168.1.106", "traffic": [], "connections": []}
+            {"name": "Device 1", "ip": "192.168.1.100", "traffic": [0], "connections": []},
+            {"name": "Device 2", "ip": "192.168.1.101", "traffic": [0], "connections": []},
+            {"name": "Device 3", "ip": "192.168.1.102", "traffic": [0], "connections": []},
+            {"name": "Device 4", "ip": "192.168.1.103", "traffic": [0], "connections": []},
+            {"name": "Device 5", "ip": "192.168.1.104", "traffic": [0], "connections": []},
+            {"name": "Device 6", "ip": "192.168.1.105", "traffic": [0], "connections": []},
+            {"name": "Device 7", "ip": "192.168.1.106", "traffic": [0], "connections": []}
         ]
 
         # System load for 3 lines
