@@ -1517,9 +1517,10 @@ class FuturisticNetworkDashboard:
         self.charts_frame = ttk.Frame(self.main_frame, style='TFrame')
         self.charts_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=15)
 
-        # Create 3x2 grid for charts
-        for i in range(6):
-            self.charts_frame.columnconfigure(i % 3, weight=1)
+        # Create 2x3 grid for better chart alignment
+        self.charts_frame.columnconfigure(0, weight=2)  # Network traffic gets more space
+        self.charts_frame.columnconfigure(1, weight=2)
+        self.charts_frame.columnconfigure(2, weight=1)  # Gauges get less space
         self.charts_frame.rowconfigure(0, weight=1)
         self.charts_frame.rowconfigure(1, weight=1)
         self.charts_frame.rowconfigure(2, weight=1)
@@ -1542,7 +1543,7 @@ class FuturisticNetworkDashboard:
     def _create_network_chart(self):
         """Create the Network Traffic chart"""
         network_frame = ttk.Frame(self.charts_frame, style='TFrame')
-        network_frame.grid(row=0, column=0, columnspan=1, sticky="nsew", padx=8, pady=8)
+        network_frame.grid(row=0, column=0, columnspan=2, sticky="nsew", padx=8, pady=8)
 
         # Create title frame with hover capability
         title_frame = ttk.Frame(network_frame, style='TFrame')
