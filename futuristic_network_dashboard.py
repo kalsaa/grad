@@ -819,6 +819,12 @@ class NetworkData:
         # Update connection details for each device
         self._update_connection_details()
 
+        # Extract latest network traffic for each device
+        network_values = []
+        for device in self.devices:
+            traffic = sum([conn["bytes_sent"] + conn["bytes_received"] for conn in device["connections"]])
+            network_values.append(traffic)
+
         # Calculate auth percentages based on actual traffic
         total_traffic = sum(network_values)
         if total_traffic > 0:
