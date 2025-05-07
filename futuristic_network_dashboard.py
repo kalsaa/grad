@@ -693,7 +693,7 @@ class NetworkData:
             {"name": "Device 4", "ip": "192.168.1.103", "traffic": [0], "connections": []},
             {"name": "Device 5", "ip": "192.168.1.104", "traffic": [0], "connections": []},
             {"name": "Device 6", "ip": "192.168.1.105", "traffic": [0], "connections": []},
-            {"name": "Device 7ip": "192.168.1.106", "traffic": [0], "connections": []}
+            {"name": "Device 7", "ip": "192.168.1.106", "traffic": [0], "connections": []}
         ]
 
         # System load for 3 lines
