@@ -282,59 +282,57 @@ class NetworkAnalyzer:
         if self.running:
             self.process_packet(packet)
     
-    def start_capture(self):
-        """Start capturing network packets"""
+    def start_capture(self, serial_port='/dev/ttyUSB0', baud_rate=9600):
+        """Start capturing serial data"""
         self.running = True
         
         try:
-            # For demo purposes, we'll simulate traffic only
-            threading.Thread(target=self.simulate_traffic, daemon=True).start()
+            import serial
+            ser = serial.Serial(serial_port, baud_rate)
             
-            # We're not using real packet capture in this demo
-            # Instead, we'll keep the main thread alive
             while self.running:
-                time.sleep(0.5)
+                if ser.in_waiting:
+                    data = ser.readline().decode('utf-8')
+                    self.process_serial_data(data)
+                time.sleep(0.01)
+                
+        except Exception as e:
+            print(f"Error in serial capture: {e}")
+            self.running = False
         except Exception as e:
             print(f"Error in network monitoring: {e}")
             self.running = False
     
-    def simulate_traffic(self):
-        """Simulate network traffic for demonstration purposes"""
-        while self.running:
+    def process_serial_data(self, serial_data):
+        """Process incoming serial data and update network stats"""
+        try:
             # Update system stats
             hour_idx = int((time.time() % 86400) / 3600)
-            self.memory_usage[hour_idx] = min(100, max(0, self.memory_usage[hour_idx] + (np.random.random() - 0.3) * 3))
             
-            # Simulate random traffic for each device
+            # Parse the serial data and update device stats
             with self.lock:
-                for ip, device in self.devices.items():
-                    # Simulate a packet
-                    if np.random.random() < 0.7:  # 70% chance of traffic
-                        # Determine if this will be authorized or unauthorized (90/10 split)
-                        is_auth = np.random.random() < 0.9
+                # Example format: "device_ip,dest_ip,protocol,port,bytes"
+                data = serial_data.strip().split(',')
+                if len(data) >= 5:
+                    src_ip, dst_ip, protocol, port, bytes = data[:5]
+                    port = int(port)
+                    bytes = float(bytes)
+                    
+                    if src_ip in self.devices:
+                        # Check if traffic is authorized
+                        is_auth = self.is_authorized(src_ip, dst_ip, protocol, port)
                         
-                        # Random destination from our device list
-                        dst_candidates = [d for d in self.devices.keys() if d != ip]
-                        dst_ip = np.random.choice(dst_candidates)
-                        
-                        # Random protocol
-                        protocol = np.random.choice(["TCP", "UDP"])
-                        
-                        # Traffic value (higher for unauthorized)
-                        value = np.random.random() * 5
-                        if not is_auth:
-                            value *= 3  # Make unauthorized traffic more visible
-                        
-                        device.add_traffic_point(value, is_auth, dst_ip, protocol)
+                        # Add traffic point with real data
+                        self.devices[src_ip].add_traffic_point(bytes, is_auth, dst_ip, protocol)
                         
                         # Update global stats
                         if is_auth:
                             self.total_authorized += 1
                         else:
                             self.total_unauthorized += 1
-            
-            # Sleep for a short time
-            time.sleep(0.2)
+                            
+        except Exception as e:
+            print(f"Error processing serial data: {e}")
     
     def stop_capture(self):
         """Stop the packet capture"""
