@@ -1119,17 +1119,17 @@ class FuturisticNetworkDashboard:
         self.charts_frame.rowconfigure(1, weight=1)
         self.charts_frame.rowconfigure(2, weight=1)
 
-        # Network Traffic chart (top left)
+        # Network Traffic chart (top)
         self._create_network_chart()
 
-        # Network Access Monitor chart (middle left & center)
+        # Network Access Monitor chart (middle left)
         self._create_auth_chart()
+
+        # Security Alerts chart (bottom)
+        self._create_unauth_chart()
 
         # Authorized Access gauge (middle right)
         self._create_auth_gauge()
-
-        # Security Alerts chart (bottom left & center)
-        self._create_unauth_chart()
 
         # Unauthorized Access gauge (bottom right)
         self._create_unauth_gauge()
@@ -1144,7 +1144,7 @@ class FuturisticNetworkDashboard:
         title_frame.pack(fill=tk.X, anchor=tk.NW, padx=5, pady=5)
 
         # Title with Wireshark logo (represented by 🦈 shark)
-        title_label = ttk.Label(title_frame, text="🦈 NETWORK TRAFFIC", style='Title.TLabel')
+        title_label = ttk.Label(title_frame, text="NETWORK TRAFFIC", style='Title.TLabel')
         title_label.pack(side=tk.LEFT)
 
         # Info label for hover stats (initially empty)
@@ -1183,14 +1183,14 @@ class FuturisticNetworkDashboard:
     def _create_auth_chart(self):
         """Create the Network Access Monitor chart"""
         auth_frame = ttk.Frame(self.charts_frame, style='TFrame')
-        auth_frame.grid(row=1, column=1, columnspan=2, sticky="nsew", padx=8, pady=8)
+        auth_frame.grid(row=1, column=0, columnspan=2, sticky="nsew", padx=8, pady=8)
 
         # Create title frame with hover capability
         title_frame = ttk.Frame(auth_frame, style='TFrame')
         title_frame.pack(fill=tk.X, anchor=tk.NW, padx=5, pady=5)
 
         # Better icon for Network Access Monitor
-        title_label = ttk.Label(title_frame, text="🔍 NETWORK ACCESS MONITOR", style='Title.TLabel')
+        title_label = ttk.Label(title_frame, text="NETWORK ACCESS MONITOR", style='Title.TLabel')
         title_label.pack(side=tk.LEFT)
 
         # Info label for hover stats (initially empty)
