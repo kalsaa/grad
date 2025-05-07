@@ -15,6 +15,11 @@ from collections import defaultdict, deque
 import numpy as np
 import csv
 from datetime import datetime
+import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import matplotlib.patheffects as path_effects
+from matplotlib.ticker import MaxNLocator
 
 # Network binary codes
 AUTH_CODE = "000"     # Authorized access code
