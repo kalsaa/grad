@@ -674,9 +674,11 @@ class NetworkData:
         ]
 
         # Current metrics
-        self.current_network = 25.0
-        self.current_auth_percent = 85.0     # Percentage of authorized traffic
-        self.current_unauth_percent = 15.0   # Percentage of unauthorized traffic
+        self.current_network = 0.0
+        self.current_auth_percent = 0.0     # Will be calculated from actual traffic
+        self.current_unauth_percent = 0.0   # Will be calculated from actual traffic
+        self.total_authorized = 0
+        self.total_unauthorized = 0
 
         # Pause state - when True, the data generation is paused
         self.paused = False
@@ -817,11 +819,19 @@ class NetworkData:
         # Update connection details for each device
         self._update_connection_details()
 
-        # Calculate and store auth percentages
-        total = self.total_authorized + self.total_unauthorized
-        if total > 0:
-            self.current_auth_percent = (self.total_authorized / total) * 100
-            self.current_unauth_percent = (self.total_unauthorized / total) * 100
+        # Calculate auth percentages based on actual traffic
+        total_traffic = sum(network_values)
+        if total_traffic > 0:
+            auth_traffic = sum([conn["bytes_sent"] + conn["bytes_received"] 
+                              for device in self.devices 
+                              for conn in device["connections"] 
+                              if conn.get("authorized", True)])
+            
+            self.current_auth_percent = (auth_traffic / total_traffic) * 100
+            self.current_unauth_percent = 100 - self.current_auth_percent
+        else:
+            self.current_auth_percent = 0
+            self.current_unauth_percent = 0
 
         # Store auth status for historical data
         self.auth_status.append([self.total_authorized, self.total_unauthorized])
