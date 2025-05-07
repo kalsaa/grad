@@ -1423,7 +1423,8 @@ class FuturisticNetworkDashboard:
             # Create scrollable frame for connections
             canvas = tk.Canvas(conn_frame, bg=self.colors['bg'], highlightthickness=0)
             scrollbar = ttk.Scrollbar(conn_frame, orient="vertical", command=canvas.yview)
-            scrollable_frame = tk.Frame(canvas, bg=self.colors['bg'])scrollable_frame.bind(
+            scrollable_frame = tk.Frame(canvas, bg=self.colors['bg'])
+            scrollable_frame.bind(
                 "<Configure>",
                 lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
             )
