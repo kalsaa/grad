@@ -1,12 +1,14 @@
+
 [project]
 name = "repl-nix-workspace"
 version = "0.1.0"
-description = "Add your description here"
+description = "Network Dashboard"
 requires-python = ">=3.11"
 dependencies = [
     "kamene==0.32",
-    "matplotlib==3.10.1",
+    "matplotlib==3.10.1", 
     "numpy==2.2.4",
     "pyserial>=3.5",
     "scapy==2.6.1",
+    "tk"
 ]
