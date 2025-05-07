@@ -709,16 +709,30 @@ class NetworkData:
         ]
 
         # Initialize with some data
-        self._initialize_data()
+        self._generate_initial_data()
 
-    def _initialize_data(self):
-        """Initialize empty data structures"""
+    def _generate_initial_data(self):
+        """Initialize with some data"""
         timestamp = time.strftime('%H:%M')
         self.timestamps.append(timestamp)
 
         # Initialize empty device connections
         for device in self.devices:
             device["connections"] = []
+
+    def _update_connection_details(self):
+        """Update connection details for active devices"""
+        # Clean up old connections and update stats
+        current_time = time.time()
+        for device in self.devices:
+            # Update existing connections
+            for conn in device["connections"]:
+                conn["duration"] = current_time - conn["created"]
+                # Randomly update bytes for active connections
+                if conn["status"] == "ACTIVE":
+                    conn["bytes_sent"] += random.randint(1000, 5000)
+                    conn["bytes_received"] += random.randint(500, 3000)
+                    conn["packets"] += random.randint(1, 5)
 
     def process_serial_data(self, data):
         """Process incoming serial data from FPGA"""
@@ -888,6 +902,14 @@ class NetworkData:
         """Setter for selected_device property"""
         # Allow None or integer values
         self._selected_device = value
+
+    def is_authorized(self, source_ip, dest_ip, protocol, port):
+        """Simulate authorization logic based on source IP and port"""
+        # Simple authorization rule:  even ports are authorized
+        if port % 2 == 0:
+            return True  # Authorized
+        else:
+            return False # Unauthorized
 
 
 class FuturisticNetworkDashboard:
@@ -1401,9 +1423,7 @@ class FuturisticNetworkDashboard:
             # Create scrollable frame for connections
             canvas = tk.Canvas(conn_frame, bg=self.colors['bg'], highlightthickness=0)
             scrollbar = ttk.Scrollbar(conn_frame, orient="vertical", command=canvas.yview)
-            scrollable_frame = tk.Frame(canvas, bg=self.colors['bg'])
-
-            scrollable_frame.bind(
+            scrollable_frame = tk.Frame(canvas, bg=self.colors['bg'])scrollable_frame.bind(
                 "<Configure>",
                 lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
             )
