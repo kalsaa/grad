@@ -35,429 +35,6 @@ class FuturisticLineChart:
         self.font_color = font_color
         self.show_hover_values = show_hover_values  # Flag to control value boxes on hover
 
-    def connect(self):
-        if self.simulation:
-            print("Running in simulation mode")
-            return True
-
-        try:
-            self.serial = serial.Serial(self.port, self.baud_rate, timeout=1)
-            print(f"Connected to FPGA on {self.port} at {self.baud_rate} baud")
-            return True
-        except serial.SerialException as e:
-            print(f"Error connecting to serial port: {e}")
-            return False
-
-    def read_packet(self):
-        if self.simulation:
-            # Generate random 8-bit packet with more variability
-            # First 2 bits: 00 (authorized) or 11 (unauthorized)
-            auth_chance = random.random()
-            auth = 0 if auth_chance < 0.5 else 3  # 50/50 chance
-
-            # Next 3 bits: source device (0-7)
-            src = random.randint(0, 7)
-
-            # Last 3 bits: destination device (0-7), different from source
-            while True:
-                dst = random.randint(0, 7)
-                if dst != src:  # Ensure different source and destination
-                    break
-
-            # Add random delay to simulate network latency
-            time.sleep(random.uniform(0.1, 0.5))
-
-            # Combine into 8-bit packet
-            packet_byte = (auth << 6) | (src << 3) | dst
-            return self.parse_packet(packet_byte)
-
-        if not self.serial:
-            return None
-
-        try:
-            packet = self.serial.read(1)
-            if packet:
-                packet_byte = ord(packet)
-                return self.parse_packet(packet_byte)
-        except serial.SerialException as e:
-            print(f"Error reading from serial port: {e}")
-        return None
-
-    def parse_packet(self, packet_byte):
-        # Extract auth bits (first 2 bits)
-        auth_bits = (packet_byte >> 6) & 0x03
-        # Extract source IP (next 3 bits)
-        # Extract source IP (bits 3-5) and destination IP (bits 0-2)
-        src_ip = (packet_byte >> 3) & 0x07
-        dest_ip = packet_byte & 0x07
-
-        # Convert IPs to binary string format (3 bits each)
-        src_ip_bin = format(src_ip, '03b')
-        dest_ip_bin = format(dest_ip, '03b')
-
-        # Get device info using binary IPs
-        src_info = DEVICE_INFO[src_ip]
-        src_info['ip'] = src_ip_bin  # Update with binary format
-
-        dest_info = DEVICE_INFO[dest_ip]
-        dest_info['ip'] = dest_ip_bin  # Update with binary format
-
-        if dest_ip not in DEVICE_INFO or src_ip not in DEVICE_INFO:
-            return None
-
-        src_info = DEVICE_INFO[src_ip]
-        dest_info = DEVICE_INFO[dest_ip]
-
-        # Check authorization (00 = authorized, 11 = unauthorized)
-        is_authorized = (auth_bits == 0)
-        # Unauthorized if auth bits are 11 (3 in decimal)
-        is_unauthorized = (auth_bits == 3)
-
-        # Only process if it's either authorized or unauthorized
-        if not (is_authorized or is_unauthorized):
-            return None
-
-        return {
-            'source': src_info,
-            'destination': dest_info,
-            'authorized': is_authorized,
-            'timestamp': time.time()
-        }
-
-    def close(self):
-        if self.serial:
-            self.serial.close()
-
-import matplotlib
-from matplotlib.figure import Figure
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-import matplotlib.pyplot as plt
-from matplotlib.patches import Wedge, FancyArrowPatch
-import matplotlib.patches as patches
-import matplotlib.patheffects as path_effects
-from matplotlib.ticker import MaxNLocator
-from matplotlib.colors import LinearSegmentedColormap, to_rgba
-from matplotlib.collections import LineCollection
-import matplotlib.colors as mcolors
-
-# Use TkAgg backend for matplotlib
-matplotlib.use("TkAgg")
-
-# Create custom colormaps for a futuristic look
-cmap_green = LinearSegmentedColormap.from_list("CustomGreen", ["#052e1c", "#0abf53", "#7fffb7"])
-cmap_orange = LinearSegmentedColormap.from_list("CustomOrange", ["#4a1c00", "#ff9800", "#ffd180"])
-cmap_blue = LinearSegmentedColormap.from_list("CustomBlue", ["#001a33", "#0078d7", "#66ccff"])
-
-# Mock classes for simulation
-class MockPacket:
-    def __init__(self, src_ip, dst_ip, protocol="TCP", dport=80):
-        self.src_ip = src_ip
-        self.dst_ip = dst_ip
-        self.protocol = protocol
-        self.dport = dport
-        self.layers = []
-
-        # Add IP layer
-        self.layers.append("IP")
-        if protocol == "TCP":
-            self.layers.append("TCP")
-        elif protocol == "UDP":
-            self.layers.append("UDP")
-
-    def __getitem__(self, layer):
-        if layer == IP:
-            return MockIP(self.src_ip, self.dst_ip)
-        elif layer == TCP:
-            return MockTCP(self.dport)
-        elif layer == UDP:
-            return MockUDP(self.dport)
-        return None
-
-    def __contains__(self, layer):
-        return layer.__name__ in self.layers
-
-    def __len__(self):
-        return random.randint(64, 1500)  # Random packet size
-
-class MockIP:
-    def __init__(self, src, dst):
-        self.src = src
-        self.dst = dst
-
-class MockTCP:
-    def __init__(self, dport):
-        self.dport = dport
-
-class MockUDP:
-    def __init__(self, dport):
-        self.dport = dport
-
-# Mock layer classes for simulation
-class IP:
-    __name__ = "IP"
-
-class TCP:
-    __name__ = "TCP"
-
-class UDP:
-    __name__ = "UDP"
-
-class DeviceData:
-    """Class to store data for a specific network device"""
-    def __init__(self, ip, name=None):
-        self.ip = ip
-        self.name = name if name else f"Device ({ip})"
-        # Store traffic history (timestamp, traffic_value, is_authorized)
-        self.traffic_history = deque(maxlen=100)
-        self.auth_history = deque(maxlen=100)
-        # Stats
-        self.total_packets = 0
-        self.authorized_packets = 0
-        self.unauthorized_packets = 0
-        # Connection info
-        self.connections = []
-        # Last destination
-        self.last_dst_ip = None
-        self.last_protocol = None
-        # Initialize with zero traffic
-        current_time = time.time()
-        for i in range(100):
-            self.traffic_history.append((current_time - (100-i)*0.5, 0, True))
-            self.auth_history.append(True)
-
-    def add_traffic_point(self, value, is_authorized, dst_ip=None, protocol=None):
-        """Add a new traffic data point"""
-        self.traffic_history.append((time.time(), value, is_authorized))
-        self.auth_history.append(is_authorized)
-        self.total_packets += 1
-
-        if is_authorized:
-            self.authorized_packets += 1
-        else:
-            self.unauthorized_packets += 1
-
-        if dst_ip:
-            self.last_dst_ip = dst_ip
-
-        if protocol:
-            self.last_protocol = protocol
-
-    def get_traffic_data(self):
-        """Get traffic data for plotting"""
-        times = [t for t, _, _ in self.traffic_history]
-        values = [v for _, v, _ in self.traffic_history]
-        auth = [a for _, _, a in self.traffic_history]
-        return times, values, auth
-
-    def get_auth_percentage(self):
-        """Get the percentage of authorized traffic"""
-        if self.total_packets == 0:
-            return 100.0
-        return (self.authorized_packets / self.total_packets) * 100
-
-    def get_unauth_percentage(self):
-        """Get the percentage of unauthorized traffic"""
-        if self.total_packets == 0:
-            return 0.0
-        return (self.unauthorized_packets / self.total_packets) * 100
-
-
-class NetworkAnalyzer:
-    """Class to analyze network traffic"""
-    def __init__(self):
-        # Flag to control packet capture
-        self.running = False
-        self.lock = threading.Lock()
-
-        # Dictionary to store device data by IP
-        self.devices = {}
-
-        # Initialize with 7 example devices
-        self._initialize_devices()
-
-        # ACL rules (simplified for demonstration)
-        self.acl_rules = self._initialize_acl_rules()
-
-        # System stats
-        self.memory_usage = [0] * 24  # 24 hour tracking
-        self.system_load = 0
-        self.cpu_usage = 33.7  # Starting value shown in image
-
-        # Overall authorization stats
-        self.total_authorized = 0
-        self.total_unauthorized = 0
-
-        # Start time
-        self.start_time = time.time()
-
-    def _initialize_devices(self):
-        """Initialize the device list with 7 devices"""
-        device_ips = [
-            "192.168.1.100",
-            "192.168.1.101",
-            "192.168.1.102",
-            "192.168.1.103",
-            "192.168.1.104",
-            "192.168.1.105",
-            "192.168.1.106"
-        ]
-
-        device_names = [
-            "Server",
-            "Workstation 1",
-            "Workstation 2",
-            "Dev Machine",
-            "Admin Laptop",
-            "IoT Gateway",
-            "Testing VM"
-        ]
-
-        for i, ip in enumerate(device_ips):
-            self.devices[ip] = DeviceData(ip, device_names[i])
-
-    def _initialize_acl_rules(self):
-        """Initialize Access Control List rules for network traffic validation"""
-        acl_rules = []
-
-        # Format: (src_ip, dst_ip, protocol, port range)
-        # Allow HTTP/HTTPS traffic from all devices to the server
-        acl_rules.append(("192.168.1.101", "192.168.1.100", "TCP", (80, 443)))
-        acl_rules.append(("192.168.1.102", "192.168.1.100", "TCP", (80, 443)))
-        acl_rules.append(("192.168.1.103", "192.168.1.100", "TCP", (80, 443)))
-        acl_rules.append(("192.168.1.104", "192.168.1.100", "TCP", (80, 443)))
-        acl_rules.append(("192.168.1.105", "192.168.1.100", "TCP", (80, 443)))
-        acl_rules.append(("192.168.1.106", "192.168.1.100", "TCP", (80, 443)))
-
-        # Allow SSH only from Admin to all devices
-        acl_rules.append(("192.168.1.104", "192.168.1.100", "TCP", (22, 22)))
-        acl_rules.append(("192.168.1.104", "192.168.1.101", "TCP", (22, 22)))
-        acl_rules.append(("192.168.1.104", "192.168.1.102", "TCP", (22, 22)))
-        acl_rules.append(("192.168.1.104", "192.168.1.103", "TCP", (22, 22)))
-        acl_rules.append(("192.168.1.104", "192.168.1.105", "TCP", (22, 22)))
-        acl_rules.append(("192.168.1.104", "192.168.1.106", "TCP", (22, 22)))
-
-        # Allow FTP from Dev Machine to Server
-        acl_rules.append(("192.168.1.103", "192.168.1.100", "TCP", (20, 21)))
-
-        # Allow DNS queries to the server
-        acl_rules.append(("192.168.1.101", "192.168.1.100", "UDP", (53, 53)))
-        acl_rules.append(("192.168.1.102", "192.168.1.100", "UDP", (53, 53)))
-        acl_rules.append(("192.168.1.103", "192.168.1.100", "UDP", (53, 53)))
-        acl_rules.append(("192.168.1.104", "192.168.1.100", "UDP", (53, 53)))
-        acl_rules.append(("192.168.1.105", "192.168.1.100", "UDP", (53, 53)))
-        acl_rules.append(("192.168.1.106", "192.168.1.100", "UDP", (53, 53)))
-
-        return acl_rules
-
-    def is_authorized(self, src_ip, dst_ip, protocol, port):
-        """Check if the traffic is authorized based on ACL rules"""
-        for rule_src, rule_dst, rule_proto, port_range in self.acl_rules:
-            # Check if this rule applies
-            if (src_ip == rule_src and 
-                dst_ip == rule_dst and 
-                protocol == rule_proto and
-                port_range[0] <= port <= port_range[1]):
-                return True
-        return False
-
-    def simulate_traffic(self):
-        """Simulate network traffic for demonstration purposes"""
-        while self.running:
-            # Update system stats
-            hour_idx = int((time.time() % 86400) / 3600)
-
-            # Simulate random traffic for each device
-            with self.lock:
-                for ip, device in self.devices.items():
-                    # Simulate a packet
-                    if np.random.random() < 0.7:  # 70% chance of traffic
-                        # Determine if this will be authorized or unauthorized (90/10 split)
-                        is_auth = np.random.random() < 0.9
-
-                        # Random destination from our device list
-                        dst_candidates = [d for d in self.devices.keys() if d != ip]
-                        dst_ip = np.random.choice(dst_candidates)
-
-                        # Random protocol
-                        protocol = np.random.choice(["TCP", "UDP"])
-
-                        # Traffic value (higher for unauthorized)
-                        value = np.random.random() * 5
-                        if not is_auth:
-                            value *= 3  # Make unauthorized traffic more visible
-
-                        device.add_traffic_point(value, is_auth, dst_ip, protocol)
-
-                        # Update global stats
-                        if is_auth:
-                            self.total_authorized += 1
-                        else:
-                            self.total_unauthorized += 1
-
-            # Sleep for a short time
-            time.sleep(0.2)
-
-    def start_capture(self):
-        """Start capturing network packets"""
-        self.running = True
-
-        try:
-            # For demo purposes, we'll simulate traffic
-            threading.Thread(target=self.simulate_traffic, daemon=True).start()
-
-            # We're not using real packet capture in this demo
-            # Instead, we'll keep the main thread alive
-            while self.running:
-                time.sleep(0.5)
-        except Exception as e:
-            print(f"Error in network monitoring: {e}")
-            self.running = False
-
-    def stop_capture(self):
-        """Stop the packet capture"""
-        self.running = False
-
-    def get_auth_percentage(self):
-        """Get the overall percentage of authorized traffic"""
-        total = self.total_authorized + self.total_unauthorized
-        if total == 0:
-            return 100.0
-        return (self.total_authorized / total) * 100
-
-    def get_unauth_percentage(self):
-        """Get the overall percentage of unauthorized traffic"""
-        total = self.total_authorized + self.total_unauthorized
-        if total == 0:
-            return 0.0
-        return (self.total_unauthorized / total) * 100
-
-    def get_all_devices(self):
-        """Get all monitored devices"""
-        with self.lock:
-            return dict(self.devices)
-
-    def get_system_load(self):
-        """Get current system load"""
-        with self.lock:
-            return self.system_load
-
-
-class FuturisticLineChart:
-    """Enhanced line chart with futuristic look for visualizing network traffic over time"""
-    def __init__(self, parent, title, labels, colors, bg_color='#080f1c', grid_color='#143062', 
-                 width=600, height=300, line_width=3.0, font_color='#e0f2ff', show_hover_values=False):
-        self.parent = parent
-        self.title = title
-        self.labels = labels
-        self.colors = colors
-        self.bg_color = bg_color
-        self.grid_color = grid_color
-        self.width = width
-        self.height = height
-        self.line_width = line_width
-        self.font_color = font_color
-        self.show_hover_values = show_hover_values  # Flag to control value boxes on hover
-
         # Store connection details for hover functionality
         self.connection_details = None
         self.device_names = None
@@ -1116,7 +693,7 @@ class NetworkData:
             {"name": "Device 4", "ip": "192.168.1.103", "traffic": [0], "connections": []},
             {"name": "Device 5", "ip": "192.168.1.104", "traffic": [0], "connections": []},
             {"name": "Device 6", "ip": "192.168.1.105", "traffic": [0], "connections": []},
-            {"name": "Device 7", "ip": "192.168.1.106", "traffic": [0], "connections": []}
+            {"name": "Device 7ip": "192.168.1.106", "traffic": [0], "connections": []}
         ]
 
         # System load for 3 lines
@@ -1127,130 +704,110 @@ class NetworkData:
         ]
 
         # Initialize with some data
-        self._generate_initial_data()
+        self._initialize_data()
 
-        # Generate initial connection data for each device
-        self._generate_connection_details()
-
-    def _generate_initial_data(self):
-        """Initialize with 60 data points of historical data"""
-        for _ in range(60):
-            self._generate_next_data_point()
-
-    def _generate_connection_details(self):
-        """Generate detailed connection information for each device"""
-        for device in self.devices:
-            source_ip = device["ip"]
-
-            # Each device has 2-4 active connections
-            num_connections = random.randint(2, 4)
-            connections = []
-
-            for _ in range(num_connections):
-                dest_ip = random.choice(self.destinations)
-                protocol = random.choice(self.protocols)
-                port = random.choice(self.common_ports)
-
-                # Add status and timestamp
-                status = "ESTABLISHED" if random.random() < 0.8 else random.choice(["LISTENING", "TIME_WAIT", "CLOSE_WAIT"])
-                timestamp = time.time() - random.uniform(0, 300)  # Connection started between 0-300 seconds ago
-
-                # Create a detailed connection object
-                connection = {
-                    "source": source_ip,
-                    "destination": dest_ip,
-                    "protocol": protocol,
-                    "port": port,
-                    "status": status,
-                    "bytes_sent": int(random.uniform(1024, 1024*1024)),
-                    "bytes_received": int(random.uniform(1024, 1024*1024)),
-                    "packets": int(random.uniform(10, 1000)),
-                    "created": timestamp,
-                    "duration": time.time() - timestamp,
-                    "authorized": random.random() < 0.85  # 85% authorized connections
-                }
-
-                connections.append(connection)
-
-            device["connections"] = connections
-
-    def _update_connection_details(self):
-        """Update connection details for each device"""
-        for device in self.devices:
-            # 20% chance to update connection details for this device
-            if random.random() < 0.2:
-                # Update existing connections (bytes, packets, duration)
-                for conn in device["connections"]:
-                    conn["bytes_sent"] += int(random.uniform(1024, 8192))
-                    conn["bytes_received"] += int(random.uniform(1024, 8192))
-                    conn["packets"] += int(random.uniform(5, 20))
-                    conn["duration"] = time.time() - conn["created"]
-
-                    # 5% chance to change status
-                    if random.random() < 0.05:
-                        conn["status"] = random.choice(["ESTABLISHED", "LISTENING", "TIME_WAIT", "CLOSE_WAIT"])
-
-                # 10% chance to replace a connection with a new one
-                if random.random() < 0.1 and device["connections"]:
-                    # Remove a random connection
-                    conn_index = random.randint(0, len(device["connections"])-1)
-                    device["connections"].pop(conn_index)
-
-                    # Add a new connection
-                    source_ip = device["ip"]
-                    dest_ip = random.choice(self.destinations)
-                    protocol = random.choice(self.protocols)
-                    port = random.choice(self.common_ports)
-                    status = "ESTABLISHED"
-                    timestamp = time.time()
-
-                    new_conn = {
-                        "source": source_ip,
-                        "destination": dest_ip,
-                        "protocol": protocol,
-                        "port": port,
-                        "status": status,
-                        "bytes_sent": int(random.uniform(1024, 4096)),
-                        "bytes_received": int(random.uniform(1024, 4096)),
-                        "packets": int(random.uniform(5, 20)),
-                        "created": timestamp,
-                        "duration": 0,
-                        "authorized": random.random() < 0.85  # 85% authorized connections
-                    }
-
-                    device["connections"].append(new_conn)
-
-    def _generate_next_data_point(self):
-        """Update data points with real traffic data"""
+    def _initialize_data(self):
+        """Initialize empty data structures"""
         timestamp = time.strftime('%H:%M')
         self.timestamps.append(timestamp)
 
-        # Keep only last 60 points
-        if len(self.timestamps) > 60:
-            self.timestamps = self.timestamps[-60:]
-            self.network_traffic = self.network_traffic[-60:]
-            self.system_load = self.system_load[-60:]
-            self.auth_status = self.auth_status[-60:]
+        # Initialize empty device connections
+        for device in self.devices:
+            device["connections"] = []
 
-        # Initialize empty values for each device
-        network_values = [0] * len(self.devices)
-        auth_count = 0
-        unauth_count = 0
+    def process_serial_data(self, data):
+        """Process incoming serial data from FPGA"""
+        try:
+            # Parse the serial data (format: source_ip,dest_ip,protocol,port,bytes_sent,bytes_received,status)
+            fields = data.strip().split(',')
+            if len(fields) >= 7:
+                source_ip = fields[0]
+                dest_ip = fields[1]
+                protocol = fields[2]
+                port = int(fields[3])
+                bytes_sent = int(fields[4])
+                bytes_received = int(fields[5])
+                status = fields[6]
+
+                # Find the device
+                for device in self.devices:
+                    if device["ip"] == source_ip:
+                        # Check if traffic is authorized
+                        is_auth = self.is_authorized(source_ip, dest_ip, protocol, port)
+
+                        # Update connection information
+                        found = False
+                        for conn in device["connections"]:
+                            if (conn["destination"] == dest_ip and 
+                                conn["protocol"] == protocol and 
+                                conn["port"] == port):
+                                # Update existing connection
+                                conn["bytes_sent"] = bytes_sent
+                                conn["bytes_received"] = bytes_received
+                                conn["status"] = status
+                                conn["duration"] = time.time() - conn["created"]
+                                found = True
+                                break
+
+                        if not found:
+                            # Create new connection
+                            new_conn = {
+                                "source": source_ip,
+                                "destination": dest_ip,
+                                "protocol": protocol,
+                                "port": port,
+                                "status": status,
+                                "bytes_sent": bytes_sent,
+                                "bytes_received": bytes_received,
+                                "packets": 1,
+                                "created": time.time(),
+                                "duration": 0,
+                                "authorized": is_auth
+                            }
+                            device["connections"].append(new_conn)
+
+                        # Update global stats
+                        if is_auth:
+                            self.total_authorized += 1
+                        else:
+                            self.total_unauthorized += 1
+
+                        break
+
+        except Exception as e:
+            print(f"Error processing serial data: {e}")
+
+    def update_data(self):
+        """Update timestamps and clean old connections"""
+        timestamp = time.strftime('%H:%M')
+        self.timestamps.append(timestamp)
+
+        # Remove old timestamps
+        if len(self.timestamps) > 60:
+            self.timestamps.pop(0)
+
+        # Clean old connections (older than 5 minutes)
+        for device in self.devices:
+            device["connections"] = [
+                conn for conn in device["connections"] if time.time() - conn["created"] < 300
+            ]
 
         # Here you would add real traffic monitoring code
         # For now, we'll just keep zero values
 
-        # Store overall network traffic
-        self.network_traffic.append(network_values)
+        # Update connection details for each device
+        self._update_connection_details()
 
         # Calculate and store auth percentages
-        total = auth_count + unauth_count
+        total = self.total_authorized + self.total_unauthorized
         if total > 0:
-            self.current_auth_percent = (auth_count / total) * 100
-            self.current_unauth_percent = (unauth_count / total) * 100
+            self.current_auth_percent = (self.total_authorized / total) * 100
+            self.current_unauth_percent = (self.total_unauthorized / total) * 100
 
         # Store auth status for historical data
-        self.auth_status.append([auth_count, unauth_count])
+        self.auth_status.append([self.total_authorized, self.total_unauthorized])
+        if len(self.auth_status) > 60:
+            self.auth_status.pop(0)
 
         # Update system load (3 lines, wandering with trends)
         current_loads = []
@@ -1268,20 +825,14 @@ class NetworkData:
             current_loads.append(load['value'])
 
         self.system_load.append(current_loads)
-
-        # Update connection details for each device
-        self._update_connection_details()
-
-    def update(self):
-        """Get new data point and return current metrics"""
-        if not self.paused:
-            # Generate next data point instead of reading from UART
-            self._generate_next_data_point()
+        if len(self.system_load) > 60:
+            self.system_load.pop(0)
 
         # Extract latest network traffic for each device
         network_values = []
         for device in self.devices:
-            network_values.append(device['traffic'][-1])
+            traffic = sum([conn["bytes_sent"] + conn["bytes_received"] for conn in device["connections"]])
+            network_values.append(traffic)
 
         # Extract latest auth status data
         auth_data = self.auth_status[-1] if self.auth_status else [0, 0]
@@ -1750,7 +1301,7 @@ class FuturisticNetworkDashboard:
         """Update the UI with the latest data"""
         if self.running:
             # Get the latest data
-            data = self.node_data.update()
+            data = self.node_data.update_data()
 
             # Update Network Traffic chart (all 7 devices) with connection details for hover
             self.network_chart.update_data(
