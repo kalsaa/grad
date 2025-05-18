@@ -658,6 +658,12 @@ class NetworkData:
         self.system_load = []
         self.auth_status = []  # List to track authorized/unauthorized access counts
         self.timestamps = []
+        
+        # Serial communication
+        self.serial_port = None
+        self.serial_connected = False
+        self.serial_thread = None
+        self.running = True
 
         # Initialize counters
         self.total_authorized = 0
@@ -735,6 +741,43 @@ class NetworkData:
                     conn["bytes_sent"] += random.randint(1000, 5000)
                     conn["bytes_received"] += random.randint(500, 3000)
                     conn["packets"] += random.randint(1, 5)
+
+    def start_serial_capture(self, port, baud_rate=115200):
+        """Start serial data capture"""
+        import serial
+        import threading
+        
+        if self.serial_connected:
+            return
+            
+        self.serial_port = serial.Serial(port, baud_rate, timeout=1)
+        self.serial_connected = True
+        
+        # Start serial reading thread
+        self.serial_thread = threading.Thread(target=self._serial_read_loop)
+        self.serial_thread.daemon = True
+        self.serial_thread.start()
+
+    def stop_serial_capture(self):
+        """Stop serial data capture"""
+        self.serial_connected = False
+        if self.serial_thread:
+            self.serial_thread.join(timeout=1)
+        if self.serial_port:
+            self.serial_port.close()
+            self.serial_port = None
+
+    def _serial_read_loop(self):
+        """Serial reading loop"""
+        while self.serial_connected and self.serial_port:
+            try:
+                if self.serial_port.in_waiting:
+                    data = self.serial_port.readline().decode('utf-8').strip()
+                    self.process_serial_data(data)
+            except Exception as e:
+                print(f"Serial read error: {e}")
+                self.serial_connected = False
+                break
 
     def process_serial_data(self, data):
         """Process incoming serial data from FPGA"""
@@ -1086,8 +1129,34 @@ class FuturisticNetworkDashboard:
         time_frame = ttk.Frame(self.header_frame, style='Header.TFrame')
         time_frame.pack(side=tk.RIGHT, padx=20, pady=10)
 
-        # Digital clock display using SF Pro (Apple iPhone font)
-        # If SF Pro is not available, fall back to a similar sans-serif font
+        # COM Port selector
+        com_frame = ttk.Frame(time_frame, style='Header.TFrame')
+        com_frame.pack(side=tk.RIGHT, padx=10)
+        
+        com_label = ttk.Label(com_frame, text="COM Port:", style='Header.TLabel')
+        com_label.pack(side=tk.LEFT, padx=5)
+        
+        self.com_ports = self._get_available_ports()
+        self.port_var = tk.StringVar()
+        if self.com_ports:
+            self.port_var.set(self.com_ports[0])
+        
+        self.port_dropdown = ttk.Combobox(com_frame, 
+                                        textvariable=self.port_var,
+                                        values=self.com_ports,
+                                        width=10,
+                                        style='Dropdown.TCombobox')
+        self.port_dropdown.pack(side=tk.LEFT, padx=5)
+        
+        # Connect button
+        self.connect_button = tk.Button(com_frame,
+                                      text="Connect",
+                                      bg=self.colors['highlight'],
+                                      fg=self.colors['text'],
+                                      command=self._toggle_serial_connection)
+        self.connect_button.pack(side=tk.LEFT, padx=5)
+
+        # Digital clock display
         self.time_display = ttk.Label(time_frame, 
                                    text=time.strftime("%H:%M:%S"), 
                                    style='Header.TLabel',
@@ -1105,6 +1174,28 @@ class FuturisticNetworkDashboard:
         # Schedule the update to occur precisely at the next second
         msecs_remaining = 1000 - (int(time.time() * 1000) % 1000)
         self.root.after(msecs_remaining, self._update_clock)
+
+    def _get_available_ports(self):
+        """Get list of available COM ports"""
+        import serial.tools.list_ports
+        return [port.device for port in serial.tools.list_ports.comports()]
+
+    def _toggle_serial_connection(self):
+        """Toggle serial connection on/off"""
+        if not hasattr(self.node_data, 'serial_connected') or not self.node_data.serial_connected:
+            # Start serial connection
+            selected_port = self.port_var.get()
+            if selected_port:
+                try:
+                    self.node_data.start_serial_capture(selected_port)
+                    self.connect_button.config(text="Disconnect", bg=self.colors['green'])
+                except Exception as e:
+                    import tkinter.messagebox as messagebox
+                    messagebox.showerror("Connection Error", f"Failed to connect: {str(e)}")
+        else:
+            # Stop serial connection
+            self.node_data.stop_serial_capture()
+            self.connect_button.config(text="Connect", bg=self.colors['highlight'])
 
     def _create_charts_area(self):
         """Create the area for charts and visualizations"""
