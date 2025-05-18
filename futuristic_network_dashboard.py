@@ -21,9 +21,13 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import matplotlib.patheffects as path_effects
 from matplotlib.ticker import MaxNLocator
 
-# Network binary codes
-AUTH_CODE = "000"     # Authorized access code
-UNAUTH_CODE = "111"   # Unauthorized access code
+# Network binary codes - 2-bit system
+# First bit: 0=authorized, 1=unauthorized
+# Second bit: 0=non-malicious, 1=malicious
+AUTH_SAFE = "00"      # Authorized and non-malicious
+AUTH_MALICIOUS = "01" # Authorized but malicious
+UNAUTH_SAFE = "10"    # Unauthorized but non-malicious
+UNAUTH_MALICIOUS = "11" # Unauthorized and malicious
 
 class FuturisticLineChart:
     def __init__(self, parent, title, labels, colors, bg_color='#080f1c', grid_color='#143062', 
