@@ -1148,6 +1148,15 @@ class FuturisticNetworkDashboard:
                                         style='Dropdown.TCombobox')
         self.port_dropdown.pack(side=tk.LEFT, padx=5)
         
+        # Status indicator (dot)
+        self.status_canvas = tk.Canvas(com_frame, width=12, height=12, 
+                                     bg=self.colors['header_bg'], 
+                                     highlightthickness=0)
+        self.status_canvas.pack(side=tk.LEFT, padx=(5,0))
+        self.status_dot = self.status_canvas.create_oval(2, 2, 10, 10, 
+                                                       fill='#ff4444',  # Start with red
+                                                       outline='')
+
         # Connect button
         self.connect_button = tk.Button(com_frame,
                                       text="Connect",
@@ -1189,13 +1198,16 @@ class FuturisticNetworkDashboard:
                 try:
                     self.node_data.start_serial_capture(selected_port)
                     self.connect_button.config(text="Disconnect", bg=self.colors['green'])
+                    self.status_canvas.itemconfig(self.status_dot, fill='#44ff44')  # Green when connected
                 except Exception as e:
                     import tkinter.messagebox as messagebox
                     messagebox.showerror("Connection Error", f"Failed to connect: {str(e)}")
+                    self.status_canvas.itemconfig(self.status_dot, fill='#ff4444')  # Red on error
         else:
             # Stop serial connection
             self.node_data.stop_serial_capture()
             self.connect_button.config(text="Connect", bg=self.colors['highlight'])
+            self.status_canvas.itemconfig(self.status_dot, fill='#ff4444')  # Red when disconnected
 
     def _create_charts_area(self):
         """Create the area for charts and visualizations"""
