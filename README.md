@@ -26,7 +26,7 @@ This dashboard is designed for an FPGA-based IDS (Intrusion Detection System) ha
 ## Running the Dashboard
 
 ```
-python network_dashboard.py
+python futuristic_network_dashboard.py
 ```
 
 ## Requirements
